@@ -1,0 +1,260 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1f1f1f;
+  background-color: #f5f7fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 1000px;
+  min-height: 700px;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #bfbfbf;
+}
+
+/* 布局样式 */
+.ant-layout {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.ant-layout-sider {
+  background: linear-gradient(180deg, #1677ff 0%, #0958d9 100%) !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+}
+
+.ant-menu-dark {
+  background: transparent !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 8px;
+}
+
+.ant-menu-dark .ant-menu-item {
+  margin: 4px 8px;
+  border-radius: 8px;
+}
+
+/* Content 区域 */
+.ant-layout-content {
+  overflow: hidden !important;
+}
+
+/* 卡片样式优化 */
+.ant-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 12px 16px;
+  min-height: auto;
+}
+
+.ant-card-head-title {
+  padding: 4px 0;
+  font-weight: 600;
+}
+
+.ant-card-body {
+  padding: 16px;
+}
+
+/* 统计卡片 */
+.stat-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* 表格优化 */
+.ant-table {
+  border-radius: 8px;
+}
+
+.ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+.ant-table-tbody > tr > td {
+  padding: 12px 16px;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f5f7fa;
+}
+
+/* 标签优化 */
+.ant-tag {
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* 按钮优化 */
+.ant-btn {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.ant-btn-primary {
+  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.2);
+}
+
+/* 输入框优化 */
+.ant-input,
+.ant-select-selector,
+.ant-picker {
+  border-radius: 6px !important;
+}
+
+/* Modal 优化 */
+.ant-modal-content {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ant-modal-header {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+.ant-modal-body {
+  padding: 24px;
+}
+
+.ant-modal-footer {
+  border-top: 1px solid #f0f0f0;
+  padding: 12px 24px;
+}
+
+/* 进度条优化 */
+.ant-progress-text {
+  font-size: 12px !important;
+}
+
+/* 空状态 */
+.ant-empty-description {
+  color: #999;
+}
+
+/* Collapse 优化 */
+.ant-collapse {
+  border: none;
+  background: transparent;
+}
+
+.ant-collapse-header {
+  padding: 12px 0 !important;
+  align-items: center !important;
+}
+
+.ant-collapse-content {
+  border-top: none !important;
+}
+
+.ant-collapse-content-box {
+  padding: 0 0 0 24px !important;
+}
+
+/* List 优化 */
+.ant-list-item {
+  padding: 8px 0 !important;
+}
+
+/* 文字省略 */
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 自定义工具类 */
+.shadow-soft {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-hover {
+  transition: box-shadow 0.3s;
+}
+
+.shadow-hover:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* 复习卡片 */
+.review-card {
+  perspective: 1000px;
+}
+
+.review-card-inner {
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+
+.review-card.flipped .review-card-inner {
+  transform: rotateY(180deg);
+}
+
+.review-card-front,
+.review-card-back {
+  backface-visibility: hidden;
+}
+
+.review-card-back {
+  transform: rotateY(180deg);
+}
+
+/* 去除不必要的边框 */
+.ant-divider {
+  margin: 16px 0;
+}
+
+.ant-form-item {
+  margin-bottom: 16px;
+}
