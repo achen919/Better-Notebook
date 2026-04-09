@@ -73,6 +73,70 @@ contextBridge.exposeInMainWorld('electronAPI', {
       delete: (id: number) => ipcRenderer.invoke('db:audio:delete', id),
       updateTitle: (id: number, title: string) => ipcRenderer.invoke('db:audio:updateTitle', id, title),
     },
+
+    // 每日TODO相关
+    todo: {
+      getByDate: (date: string) => ipcRenderer.invoke('db:todo:getByDate', date),
+      create: (data: any) => ipcRenderer.invoke('db:todo:create', data),
+      update: (id: number, data: any) => ipcRenderer.invoke('db:todo:update', id, data),
+      delete: (id: number) => ipcRenderer.invoke('db:todo:delete', id),
+      getCompletionRate: (date: string) => ipcRenderer.invoke('db:todo:getCompletionRate', date),
+      getRecentStats: (days: number) => ipcRenderer.invoke('db:todo:getRecentStats', days),
+    },
+
+    // 每日总结相关
+    summary: {
+      getByDate: (date: string) => ipcRenderer.invoke('db:summary:getByDate', date),
+      getRecent: (days: number) => ipcRenderer.invoke('db:summary:getRecent', days),
+      upsert: (data: any) => ipcRenderer.invoke('db:summary:upsert', data),
+      delete: (date: string) => ipcRenderer.invoke('db:summary:delete', date),
+    },
+
+    // 学习时间相关
+    learningTime: {
+      getByDate: (date: string) => ipcRenderer.invoke('db:learningTime:getByDate', date),
+      getTotalByDate: (date: string) => ipcRenderer.invoke('db:learningTime:getTotalByDate', date),
+      create: (data: any) => ipcRenderer.invoke('db:learningTime:create', data),
+      update: (id: number, data: any) => ipcRenderer.invoke('db:learningTime:update', id, data),
+      delete: (id: number) => ipcRenderer.invoke('db:learningTime:delete', id),
+      getStats: (period: 'week' | 'month' | 'year') => ipcRenderer.invoke('db:learningTime:getStats', period),
+      getSubjectDistribution: (days: number) => ipcRenderer.invoke('db:learningTime:getSubjectDistribution', days),
+    },
+
+    // 任务相关
+    tasks: {
+      getAll: (status?: string) => ipcRenderer.invoke('db:tasks:getAll', status),
+      getActive: () => ipcRenderer.invoke('db:tasks:getActive'),
+      getUpcoming: (days: number) => ipcRenderer.invoke('db:tasks:getUpcoming', days),
+      getById: (id: number) => ipcRenderer.invoke('db:tasks:getById', id),
+      create: (data: any) => ipcRenderer.invoke('db:tasks:create', data),
+      update: (id: number, data: any) => ipcRenderer.invoke('db:tasks:update', id, data),
+      delete: (id: number) => ipcRenderer.invoke('db:tasks:delete', id),
+    },
+
+    // 任务子项目相关
+    taskSubitems: {
+      getByTask: (taskId: number) => ipcRenderer.invoke('db:taskSubitems:getByTask', taskId),
+      create: (data: any) => ipcRenderer.invoke('db:taskSubitems:create', data),
+      update: (id: number, data: any) => ipcRenderer.invoke('db:taskSubitems:update', id, data),
+      delete: (id: number) => ipcRenderer.invoke('db:taskSubitems:delete', id),
+    },
+
+    // 任务进度相关
+    taskProgress: {
+      getByTask: (taskId: number) => ipcRenderer.invoke('db:taskProgress:getByTask', taskId),
+      getByDate: (date: string) => ipcRenderer.invoke('db:taskProgress:getByDate', date),
+      create: (data: any) => ipcRenderer.invoke('db:taskProgress:create', data),
+      delete: (id: number) => ipcRenderer.invoke('db:taskProgress:delete', id),
+    },
+
+    // 里程碑相关
+    milestones: {
+      getByTask: (taskId: number) => ipcRenderer.invoke('db:milestones:getByTask', taskId),
+      create: (data: any) => ipcRenderer.invoke('db:milestones:create', data),
+      update: (id: number, data: any) => ipcRenderer.invoke('db:milestones:update', id, data),
+      delete: (id: number) => ipcRenderer.invoke('db:milestones:delete', id),
+    },
   },
 })
 
@@ -126,6 +190,56 @@ export interface ElectronAPI {
       create: (data: any) => Promise<number>
       delete: (id: number) => Promise<void>
       updateTitle: (id: number, title: string) => Promise<void>
+    }
+    todo: {
+      getByDate: (date: string) => Promise<any[]>
+      create: (data: any) => Promise<number>
+      update: (id: number, data: any) => Promise<void>
+      delete: (id: number) => Promise<void>
+      getCompletionRate: (date: string) => Promise<any>
+      getRecentStats: (days: number) => Promise<any[]>
+    }
+    summary: {
+      getByDate: (date: string) => Promise<any>
+      getRecent: (days: number) => Promise<any[]>
+      upsert: (data: any) => Promise<number>
+      delete: (date: string) => Promise<void>
+    }
+    learningTime: {
+      getByDate: (date: string) => Promise<any[]>
+      getTotalByDate: (date: string) => Promise<any>
+      create: (data: any) => Promise<number>
+      update: (id: number, data: any) => Promise<void>
+      delete: (id: number) => Promise<void>
+      getStats: (period: 'week' | 'month' | 'year') => Promise<any[]>
+      getSubjectDistribution: (days: number) => Promise<any[]>
+    }
+    tasks: {
+      getAll: (status?: string) => Promise<any[]>
+      getActive: () => Promise<any[]>
+      getUpcoming: (days: number) => Promise<any[]>
+      getById: (id: number) => Promise<any>
+      create: (data: any) => Promise<number>
+      update: (id: number, data: any) => Promise<void>
+      delete: (id: number) => Promise<void>
+    }
+    taskSubitems: {
+      getByTask: (taskId: number) => Promise<any[]>
+      create: (data: any) => Promise<number>
+      update: (id: number, data: any) => Promise<void>
+      delete: (id: number) => Promise<void>
+    }
+    taskProgress: {
+      getByTask: (taskId: number) => Promise<any[]>
+      getByDate: (date: string) => Promise<any[]>
+      create: (data: any) => Promise<number>
+      delete: (id: number) => Promise<void>
+    }
+    milestones: {
+      getByTask: (taskId: number) => Promise<any[]>
+      create: (data: any) => Promise<number>
+      update: (id: number, data: any) => Promise<void>
+      delete: (id: number) => Promise<void>
     }
   }
 }

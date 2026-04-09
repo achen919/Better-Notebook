@@ -496,3 +496,495 @@ export const audioService = {
     run('UPDATE audio_recordings SET title = ? WHERE id = ?', [title, id])
   },
 }
+
+// ==================== 每日TODO相关操作 ====================
+
+export const todoService = {
+  // 获取某天的所有TODO
+  getByDate(date: string) {
+    return all(`
+      SELECT * FROM daily_todos
+      WHERE date = ?
+      ORDER BY sort_order ASC, created_at ASC
+    `, [date])
+  },
+
+  // 创建TODO
+  create(data: { date: string; content: string; sort_order?: number }) {
+    const result = run(`
+      INSERT INTO daily_todos (date, content, sort_order)
+      VALUES (?, ?, ?)
+    `, [data.date, data.content, data.sort_order || 0])
+    return result.lastInsertRowid
+  },
+
+  // 更新TODO
+  update(id: number, data: { content?: string; completed?: number; sort_order?: number }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.content !== undefined) {
+      fields.push('content = ?')
+      values.push(data.content)
+    }
+    if (data.completed !== undefined) {
+      fields.push('completed = ?')
+      values.push(data.completed)
+    }
+    if (data.sort_order !== undefined) {
+      fields.push('sort_order = ?')
+      values.push(data.sort_order)
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE daily_todos SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+    }
+  },
+
+  // 删除TODO
+  delete(id: number) {
+    run('DELETE FROM daily_todos WHERE id = ?', [id])
+  },
+
+  // 批量更新排序
+  updateOrder(items: { id: number; sort_order: number }[]) {
+    for (const item of items) {
+      run('UPDATE daily_todos SET sort_order = ? WHERE id = ?', [item.sort_order, item.id])
+    }
+  },
+
+  // 获取某天的完成率
+  getCompletionRate(date: string) {
+    return get(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed
+      FROM daily_todos
+      WHERE date = ?
+    `, [date])
+  },
+
+  // 获取最近N天的TODO统计
+  getRecentStats(days: number) {
+    return all(`
+      SELECT
+        date,
+        COUNT(*) as total,
+        SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed
+      FROM daily_todos
+      WHERE date >= date('now', '-' || ? || ' days', 'localtime')
+      GROUP BY date
+      ORDER BY date DESC
+    `, [days])
+  },
+}
+
+// ==================== 每日总结相关操作 ====================
+
+export const summaryService = {
+  // 获取某天的总结
+  getByDate(date: string) {
+    return get(`
+      SELECT * FROM daily_summaries WHERE date = ?
+    `, [date])
+  },
+
+  // 获取最近N天的总结
+  getRecent(days: number) {
+    return all(`
+      SELECT * FROM daily_summaries
+      WHERE date >= date('now', '-' || ? || ' days', 'localtime')
+      ORDER BY date DESC
+    `, [days])
+  },
+
+  // 创建或更新总结
+  upsert(data: { date: string; summary: string; mood?: string }) {
+    const existing = get('SELECT id FROM daily_summaries WHERE date = ?', [data.date])
+
+    if (existing) {
+      run(`
+        UPDATE daily_summaries
+        SET summary = ?, mood = ?, updated_at = datetime('now', 'localtime')
+        WHERE date = ?
+      `, [data.summary, data.mood || 'good', data.date])
+      return existing.id
+    } else {
+      const result = run(`
+        INSERT INTO daily_summaries (date, summary, mood)
+        VALUES (?, ?, ?)
+      `, [data.date, data.summary, data.mood || 'good'])
+      return result.lastInsertRowid
+    }
+  },
+
+  // 删除总结
+  delete(date: string) {
+    run('DELETE FROM daily_summaries WHERE date = ?', [date])
+  },
+}
+
+// ==================== 学习时间相关操作 ====================
+
+export const learningTimeService = {
+  // 获取某天的学习时间记录
+  getByDate(date: string) {
+    return all(`
+      SELECT l.*, s.name as subject_name, s.color as subject_color
+      FROM learning_time l
+      LEFT JOIN subjects s ON l.subject_id = s.id
+      WHERE l.date = ?
+      ORDER BY l.created_at DESC
+    `, [date])
+  },
+
+  // 获取某天总学习时间
+  getTotalByDate(date: string) {
+    return get(`
+      SELECT COALESCE(SUM(duration), 0) as total_duration
+      FROM learning_time
+      WHERE date = ?
+    `, [date])
+  },
+
+  // 创建学习时间记录
+  create(data: { date: string; duration: number; subject_id?: number; note?: string }) {
+    const result = run(`
+      INSERT INTO learning_time (date, duration, subject_id, note)
+      VALUES (?, ?, ?, ?)
+    `, [data.date, data.duration, data.subject_id || null, data.note || ''])
+    return result.lastInsertRowid
+  },
+
+  // 更新学习时间记录
+  update(id: number, data: { duration?: number; subject_id?: number; note?: string }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.duration !== undefined) {
+      fields.push('duration = ?')
+      values.push(data.duration)
+    }
+    if (data.subject_id !== undefined) {
+      fields.push('subject_id = ?')
+      values.push(data.subject_id)
+    }
+    if (data.note !== undefined) {
+      fields.push('note = ?')
+      values.push(data.note)
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE learning_time SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+    }
+  },
+
+  // 删除学习时间记录
+  delete(id: number) {
+    run('DELETE FROM learning_time WHERE id = ?', [id])
+  },
+
+  // 获取周/月/年统计
+  getStats(period: 'week' | 'month' | 'year') {
+    let days = period === 'week' ? 7 : period === 'month' ? 30 : 365
+    return all(`
+      SELECT
+        date,
+        SUM(duration) as total_duration
+      FROM learning_time
+      WHERE date >= date('now', '-' || ? || ' days', 'localtime')
+      GROUP BY date
+      ORDER BY date ASC
+    `, [days])
+  },
+
+  // 获取某时间段的科目分布
+  getSubjectDistribution(days: number) {
+    return all(`
+      SELECT
+        s.id, s.name, s.color,
+        SUM(l.duration) as total_duration
+      FROM learning_time l
+      LEFT JOIN subjects s ON l.subject_id = s.id
+      WHERE l.date >= date('now', '-' || ? || ' days', 'localtime')
+      GROUP BY s.id
+      ORDER BY total_duration DESC
+    `, [days])
+  },
+}
+
+// ==================== 任务相关操作 ====================
+
+export const taskService = {
+  // 获取所有任务
+  getAll(status?: string) {
+    let sql = `
+      SELECT t.*,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id) as subitem_count,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id AND completed = 1) as completed_subitems
+      FROM tasks t
+    `
+    const params: any[] = []
+
+    if (status) {
+      sql += ' WHERE t.status = ?'
+      params.push(status)
+    }
+
+    sql += ' ORDER BY t.deadline ASC, t.priority DESC, t.created_at DESC'
+
+    return all(sql, params)
+  },
+
+  // 获取活跃任务（未完成）
+  getActive() {
+    return all(`
+      SELECT t.*,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id) as subitem_count,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id AND completed = 1) as completed_subitems
+      FROM tasks t
+      WHERE t.status != 'completed'
+      ORDER BY t.deadline ASC, t.priority DESC
+    `)
+  },
+
+  // 获取即将到期的任务
+  getUpcoming(days: number) {
+    return all(`
+      SELECT t.*,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id) as subitem_count,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id AND completed = 1) as completed_subitems
+      FROM tasks t
+      WHERE t.status != 'completed'
+        AND date(t.deadline) <= date('now', '+' || ? || ' days', 'localtime')
+      ORDER BY t.deadline ASC, t.priority DESC
+    `, [days])
+  },
+
+  // 获取单个任务
+  getById(id: number) {
+    return get(`
+      SELECT t.*,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id) as subitem_count,
+        (SELECT COUNT(*) FROM task_subitems WHERE task_id = t.id AND completed = 1) as completed_subitems
+      FROM tasks t
+      WHERE t.id = ?
+    `, [id])
+  },
+
+  // 创建任务
+  create(data: {
+    title: string
+    description?: string
+    deadline: string
+    priority?: number
+    progress_type?: 'percentage' | 'subitems'
+    total_value?: number
+  }) {
+    const result = run(`
+      INSERT INTO tasks (title, description, deadline, priority, progress_type, total_value)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [
+      data.title,
+      data.description || '',
+      data.deadline,
+      data.priority || 2,
+      data.progress_type || 'percentage',
+      data.total_value || 100
+    ])
+    return result.lastInsertRowid
+  },
+
+  // 更新任务
+  update(id: number, data: {
+    title?: string
+    description?: string
+    deadline?: string
+    priority?: number
+    status?: string
+    current_value?: number
+  }) {
+    const fields: string[] = ['updated_at = datetime(\'now\', \'localtime\')']
+    const values: any[] = []
+
+    if (data.title !== undefined) {
+      fields.push('title = ?')
+      values.push(data.title)
+    }
+    if (data.description !== undefined) {
+      fields.push('description = ?')
+      values.push(data.description)
+    }
+    if (data.deadline !== undefined) {
+      fields.push('deadline = ?')
+      values.push(data.deadline)
+    }
+    if (data.priority !== undefined) {
+      fields.push('priority = ?')
+      values.push(data.priority)
+    }
+    if (data.status !== undefined) {
+      fields.push('status = ?')
+      values.push(data.status)
+      if (data.status === 'completed') {
+        fields.push('completed_at = datetime(\'now\', \'localtime\')')
+      }
+    }
+    if (data.current_value !== undefined) {
+      fields.push('current_value = ?')
+      values.push(data.current_value)
+    }
+
+    run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+  },
+
+  // 删除任务
+  delete(id: number) {
+    run('DELETE FROM tasks WHERE id = ?', [id])
+  },
+}
+
+// ==================== 任务子项目相关操作 ====================
+
+export const taskSubitemService = {
+  // 获取任务的所有子项目
+  getByTask(taskId: number) {
+    return all(`
+      SELECT * FROM task_subitems
+      WHERE task_id = ?
+      ORDER BY sort_order ASC, created_at ASC
+    `, [taskId])
+  },
+
+  // 创建子项目
+  create(data: { task_id: number; title: string; sort_order?: number }) {
+    const result = run(`
+      INSERT INTO task_subitems (task_id, title, sort_order)
+      VALUES (?, ?, ?)
+    `, [data.task_id, data.title, data.sort_order || 0])
+    return result.lastInsertRowid
+  },
+
+  // 更新子项目
+  update(id: number, data: { title?: string; completed?: number; sort_order?: number }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.title !== undefined) {
+      fields.push('title = ?')
+      values.push(data.title)
+    }
+    if (data.completed !== undefined) {
+      fields.push('completed = ?')
+      values.push(data.completed)
+    }
+    if (data.sort_order !== undefined) {
+      fields.push('sort_order = ?')
+      values.push(data.sort_order)
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE task_subitems SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+    }
+  },
+
+  // 删除子项目
+  delete(id: number) {
+    run('DELETE FROM task_subitems WHERE id = ?', [id])
+  },
+}
+
+// ==================== 任务进度相关操作 ====================
+
+export const taskProgressService = {
+  // 获取任务的进度记录
+  getByTask(taskId: number) {
+    return all(`
+      SELECT * FROM task_progress
+      WHERE task_id = ?
+      ORDER BY date DESC, created_at DESC
+    `, [taskId])
+  },
+
+  // 获取某天的所有进度记录
+  getByDate(date: string) {
+    return all(`
+      SELECT tp.*, t.title as task_title, t.deadline
+      FROM task_progress tp
+      JOIN tasks t ON tp.task_id = t.id
+      WHERE tp.date = ?
+      ORDER BY tp.created_at DESC
+    `, [date])
+  },
+
+  // 创建进度记录
+  create(data: { task_id: number; date: string; progress_value?: number; note?: string }) {
+    const result = run(`
+      INSERT INTO task_progress (task_id, date, progress_value, note)
+      VALUES (?, ?, ?, ?)
+    `, [data.task_id, data.date, data.progress_value || 0, data.note || ''])
+    return result.lastInsertRowid
+  },
+
+  // 删除进度记录
+  delete(id: number) {
+    run('DELETE FROM task_progress WHERE id = ?', [id])
+  },
+}
+
+// ==================== 里程碑相关操作 ====================
+
+export const milestoneService = {
+  // 获取任务的所有里程碑
+  getByTask(taskId: number) {
+    return all(`
+      SELECT * FROM milestones
+      WHERE task_id = ?
+      ORDER BY target_date ASC, created_at ASC
+    `, [taskId])
+  },
+
+  // 创建里程碑
+  create(data: { task_id: number; title: string; description?: string; target_date?: string }) {
+    const result = run(`
+      INSERT INTO milestones (task_id, title, description, target_date)
+      VALUES (?, ?, ?, ?)
+    `, [data.task_id, data.title, data.description || '', data.target_date || null])
+    return result.lastInsertRowid
+  },
+
+  // 更新里程碑
+  update(id: number, data: { title?: string; description?: string; target_date?: string; completed?: number }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.title !== undefined) {
+      fields.push('title = ?')
+      values.push(data.title)
+    }
+    if (data.description !== undefined) {
+      fields.push('description = ?')
+      values.push(data.description)
+    }
+    if (data.target_date !== undefined) {
+      fields.push('target_date = ?')
+      values.push(data.target_date)
+    }
+    if (data.completed !== undefined) {
+      fields.push('completed = ?')
+      values.push(data.completed)
+      if (data.completed === 1) {
+        fields.push('completed_at = datetime(\'now\', \'localtime\')')
+      }
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE milestones SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+    }
+  },
+
+  // 删除里程碑
+  delete(id: number) {
+    run('DELETE FROM milestones WHERE id = ?', [id])
+  },
+}

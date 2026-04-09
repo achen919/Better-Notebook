@@ -6,6 +6,8 @@ import {
   SyncOutlined,
   BarChartOutlined,
   SettingOutlined,
+  CheckSquareOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -24,6 +26,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: '/',
       icon: <HomeOutlined />,
       label: '首页',
+    },
+    {
+      key: '/todo',
+      icon: <CheckSquareOutlined />,
+      label: '每日计划',
+    },
+    {
+      key: '/tasks',
+      icon: <ClockCircleOutlined />,
+      label: '任务倒计时',
     },
     {
       key: '/questions',

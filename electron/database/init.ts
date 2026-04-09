@@ -226,6 +226,102 @@ function createTables() {
     )
   `)
 
+  // 每日TODO表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS daily_todos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      content TEXT NOT NULL,
+      completed INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // 每日总结表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS daily_summaries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE,
+      summary TEXT,
+      mood TEXT DEFAULT 'good',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // 学习时间记录表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS learning_time (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      duration INTEGER DEFAULT 0,
+      subject_id INTEGER,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE SET NULL
+    )
+  `)
+
+  // 任务表（带deadline）
+  database.run(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      deadline TEXT NOT NULL,
+      priority INTEGER DEFAULT 2,
+      status TEXT DEFAULT 'pending',
+      progress_type TEXT DEFAULT 'percentage',
+      total_value INTEGER DEFAULT 100,
+      current_value INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME
+    )
+  `)
+
+  // 任务子项目表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS task_subitems (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      completed INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
+
+  // 任务进度记录表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS task_progress (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      progress_value INTEGER DEFAULT 0,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
+
+  // 里程碑表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS milestones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      target_date TEXT,
+      completed INTEGER DEFAULT 0,
+      completed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
+
   // 插入默认科目（如果表为空）
   const countResult = database.exec('SELECT COUNT(*) as count FROM subjects')
   const count = countResult.length > 0 ? (countResult[0].values[0] as any[])[0] : 0

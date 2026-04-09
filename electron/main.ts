@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase } from './database/init'
-import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService } from './database/services'
+import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService } from './database/services'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -132,3 +132,53 @@ ipcMain.handle('db:audio:getAudioData', async (_event, id: number) => audioServi
 ipcMain.handle('db:audio:create', async (_event, data: any) => audioService.create(data))
 ipcMain.handle('db:audio:delete', async (_event, id: number) => audioService.delete(id))
 ipcMain.handle('db:audio:updateTitle', async (_event, id: number, title: string) => audioService.updateTitle(id, title))
+
+// ==================== 每日TODO相关 ====================
+ipcMain.handle('db:todo:getByDate', async (_event, date: string) => todoService.getByDate(date))
+ipcMain.handle('db:todo:create', async (_event, data: any) => todoService.create(data))
+ipcMain.handle('db:todo:update', async (_event, id: number, data: any) => todoService.update(id, data))
+ipcMain.handle('db:todo:delete', async (_event, id: number) => todoService.delete(id))
+ipcMain.handle('db:todo:getCompletionRate', async (_event, date: string) => todoService.getCompletionRate(date))
+ipcMain.handle('db:todo:getRecentStats', async (_event, days: number) => todoService.getRecentStats(days))
+
+// ==================== 每日总结相关 ====================
+ipcMain.handle('db:summary:getByDate', async (_event, date: string) => summaryService.getByDate(date))
+ipcMain.handle('db:summary:getRecent', async (_event, days: number) => summaryService.getRecent(days))
+ipcMain.handle('db:summary:upsert', async (_event, data: any) => summaryService.upsert(data))
+ipcMain.handle('db:summary:delete', async (_event, date: string) => summaryService.delete(date))
+
+// ==================== 学习时间相关 ====================
+ipcMain.handle('db:learningTime:getByDate', async (_event, date: string) => learningTimeService.getByDate(date))
+ipcMain.handle('db:learningTime:getTotalByDate', async (_event, date: string) => learningTimeService.getTotalByDate(date))
+ipcMain.handle('db:learningTime:create', async (_event, data: any) => learningTimeService.create(data))
+ipcMain.handle('db:learningTime:update', async (_event, id: number, data: any) => learningTimeService.update(id, data))
+ipcMain.handle('db:learningTime:delete', async (_event, id: number) => learningTimeService.delete(id))
+ipcMain.handle('db:learningTime:getStats', async (_event, period: string) => learningTimeService.getStats(period as 'week' | 'month' | 'year'))
+ipcMain.handle('db:learningTime:getSubjectDistribution', async (_event, days: number) => learningTimeService.getSubjectDistribution(days))
+
+// ==================== 任务相关 ====================
+ipcMain.handle('db:tasks:getAll', async (_event, status?: string) => taskService.getAll(status))
+ipcMain.handle('db:tasks:getActive', async () => taskService.getActive())
+ipcMain.handle('db:tasks:getUpcoming', async (_event, days: number) => taskService.getUpcoming(days))
+ipcMain.handle('db:tasks:getById', async (_event, id: number) => taskService.getById(id))
+ipcMain.handle('db:tasks:create', async (_event, data: any) => taskService.create(data))
+ipcMain.handle('db:tasks:update', async (_event, id: number, data: any) => taskService.update(id, data))
+ipcMain.handle('db:tasks:delete', async (_event, id: number) => taskService.delete(id))
+
+// ==================== 任务子项目相关 ====================
+ipcMain.handle('db:taskSubitems:getByTask', async (_event, taskId: number) => taskSubitemService.getByTask(taskId))
+ipcMain.handle('db:taskSubitems:create', async (_event, data: any) => taskSubitemService.create(data))
+ipcMain.handle('db:taskSubitems:update', async (_event, id: number, data: any) => taskSubitemService.update(id, data))
+ipcMain.handle('db:taskSubitems:delete', async (_event, id: number) => taskSubitemService.delete(id))
+
+// ==================== 任务进度相关 ====================
+ipcMain.handle('db:taskProgress:getByTask', async (_event, taskId: number) => taskProgressService.getByTask(taskId))
+ipcMain.handle('db:taskProgress:getByDate', async (_event, date: string) => taskProgressService.getByDate(date))
+ipcMain.handle('db:taskProgress:create', async (_event, data: any) => taskProgressService.create(data))
+ipcMain.handle('db:taskProgress:delete', async (_event, id: number) => taskProgressService.delete(id))
+
+// ==================== 里程碑相关 ====================
+ipcMain.handle('db:milestones:getByTask', async (_event, taskId: number) => milestoneService.getByTask(taskId))
+ipcMain.handle('db:milestones:create', async (_event, data: any) => milestoneService.create(data))
+ipcMain.handle('db:milestones:update', async (_event, id: number, data: any) => milestoneService.update(id, data))
+ipcMain.handle('db:milestones:delete', async (_event, id: number) => milestoneService.delete(id))
