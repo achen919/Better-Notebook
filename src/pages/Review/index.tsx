@@ -6,20 +6,23 @@ import {
   Tag,
   Typography,
   Progress,
-  Empty,
   Result,
   Row,
   Col,
+  Collapse,
+  message,
 } from 'antd'
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
   EyeOutlined,
+  AudioOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useReviewStore } from '../../stores'
 import { FEEDBACK_LEVELS, getReviewProgress } from '../../utils/ebbinghaus'
 import type { FeedbackLevel } from '../../types'
+import AudioRecorder from '../../components/AudioRecorder'
 
 const { Title, Paragraph } = Typography
 
@@ -131,18 +134,60 @@ const ReviewPage: React.FC = () => {
           </Space>
         </div>
 
+        {/* 题目内容 */}
         <div className="mb-4">
-          <div className="text-gray-500 text-sm mb-2">题目内容</div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-500 text-sm">题目内容</span>
+            <Collapse
+              size="small"
+              bordered={false}
+              items={[
+                {
+                  key: '1',
+                  label: <span className="flex items-center gap-1 text-xs"><AudioOutlined /> 题目解释录音</span>,
+                  children: <AudioRecorder questionId={currentQuestion.id} type="explanation" />,
+                  forceRender: true,
+                },
+              ]}
+              className="bg-transparent"
+            />
+          </div>
           <Paragraph className="whitespace-pre-wrap bg-gray-50 p-3 rounded-lg mb-0">
             {currentQuestion.content || '暂无内容'}
           </Paragraph>
         </div>
 
+        {/* 口述回答录音 - 在显示答案前 */}
+        {!showAnswer && (
+          <Card size="small" className="mb-4 bg-blue-50" bordered={false}>
+            <div className="flex items-center gap-2 mb-2">
+              <AudioOutlined className="text-blue-500" />
+              <span className="text-gray-600 text-sm font-medium">口述回答（可选）</span>
+            </div>
+            <AudioRecorder questionId={currentQuestion.id} type="answer" />
+          </Card>
+        )}
+
         {/* 答案区域 */}
         {showAnswer ? (
           <>
             <div className="mb-4">
-              <div className="text-gray-500 text-sm mb-2">答案</div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-500 text-sm">答案</span>
+                <Collapse
+                  size="small"
+                  bordered={false}
+                  items={[
+                    {
+                      key: '1',
+                      label: <span className="flex items-center gap-1 text-xs"><AudioOutlined /> 口述回答录音</span>,
+                      children: <AudioRecorder questionId={currentQuestion.id} type="answer" />,
+                      forceRender: true,
+                    },
+                  ]}
+                  className="bg-transparent"
+                />
+              </div>
               <Paragraph className="whitespace-pre-wrap bg-green-50 p-3 rounded-lg mb-0">
                 {currentQuestion.answer || '暂无答案'}
               </Paragraph>
@@ -157,7 +202,7 @@ const ReviewPage: React.FC = () => {
               </div>
             )}
 
-            <div className="border-t pt-4">
+            <div className="border-t pt-4 mt-4">
               <div className="text-gray-500 text-sm mb-3 text-center">请选择你的记忆程度</div>
               <Row gutter={12}>
                 {Object.entries(FEEDBACK_LEVELS).map(([key, config]) => (
@@ -192,7 +237,7 @@ const ReviewPage: React.FC = () => {
             </div>
           </>
         ) : (
-          <div className="text-center py-6">
+          <div className="text-center py-4">
             <Button
               type="primary"
               size="large"

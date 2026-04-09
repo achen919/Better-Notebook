@@ -9,12 +9,13 @@ import {
   Row,
   Col,
   Space,
-  InputNumber,
   Divider,
+  Alert,
 } from 'antd'
-import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { SaveOutlined, ArrowLeftOutlined, AudioOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuestionStore, useSubjectStore } from '../../stores'
+import AudioRecorder from '../../components/AudioRecorder'
 
 const { TextArea } = Input
 const { Option } = Select
@@ -31,12 +32,16 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ mode }) => {
   const { createQuestion, updateQuestion, fetchQuestionById, currentQuestion } = useQuestionStore()
   const { subjects, fetchSubjects, fetchChapters, chapters, tags, fetchTags } = useSubjectStore()
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
+  const [savedQuestionId, setSavedQuestionId] = useState<number | null>(null)
+
+  const questionId = mode === 'edit' && id ? Number(id) : savedQuestionId
 
   useEffect(() => {
     fetchSubjects()
     fetchTags()
     if (mode === 'edit' && id) {
       fetchQuestionById(Number(id))
+      setSavedQuestionId(Number(id))
     }
   }, [mode, id])
 
@@ -70,13 +75,13 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ mode }) => {
     setLoading(true)
     try {
       if (mode === 'add') {
-        await createQuestion(values)
-        message.success('添加成功')
+        const newId = await createQuestion(values)
+        setSavedQuestionId(newId)
+        message.success('添加成功，您可以继续添加录音或返回列表')
       } else if (id) {
         await updateQuestion(Number(id), values)
         message.success('更新成功')
       }
-      navigate('/questions')
     } catch {
       message.error(mode === 'add' ? '添加失败' : '更新失败')
     } finally {
@@ -94,6 +99,16 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ mode }) => {
           {mode === 'add' ? '添加错题' : '编辑错题'}
         </h1>
       </div>
+
+      {/* 添加模式提示 */}
+      {mode === 'add' && !savedQuestionId && (
+        <Alert
+          message="提示"
+          description="请先保存题目基本信息，之后可以添加录音"
+          type="info"
+          showIcon
+        />
+      )}
 
       <Card size="small">
         <Form
@@ -185,41 +200,57 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ mode }) => {
             </Col>
           </Row>
 
-          <Divider orientation="left" plain>题目内容</Divider>
+          {/* 题目内容 */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-gray-600 text-sm">题目</label>
+              {questionId && <AudioRecorder questionId={questionId} type="explanation" />}
+            </div>
+            <Form.Item name="content" className="mb-0">
+              <TextArea
+                rows={4}
+                placeholder="请输入题目内容..."
+                showCount
+                maxLength={2000}
+              />
+            </Form.Item>
+          </div>
 
-          <Form.Item name="content" label="题目">
-            <TextArea
-              rows={4}
-              placeholder="请输入题目内容..."
-              showCount
-              maxLength={2000}
-            />
-          </Form.Item>
+          {/* 答案 */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-gray-600 text-sm">答案</label>
+              {questionId && <AudioRecorder questionId={questionId} type="answer" />}
+            </div>
+            <Form.Item name="answer" className="mb-0">
+              <TextArea
+                rows={3}
+                placeholder="请输入答案..."
+                showCount
+                maxLength={2000}
+              />
+            </Form.Item>
+          </div>
 
-          <Form.Item name="answer" label="答案">
-            <TextArea
-              rows={3}
-              placeholder="请输入答案..."
-              showCount
-              maxLength={2000}
-            />
-          </Form.Item>
-
-          <Form.Item name="analysis" label="解析">
-            <TextArea
-              rows={4}
-              placeholder="请输入题目解析..."
-              showCount
-              maxLength={2000}
-            />
-          </Form.Item>
+          {/* 解析 */}
+          <div className="mb-4">
+            <label className="text-gray-600 text-sm mb-2 block">解析</label>
+            <Form.Item name="analysis" className="mb-0">
+              <TextArea
+                rows={4}
+                placeholder="请输入题目解析..."
+                showCount
+                maxLength={2000}
+              />
+            </Form.Item>
+          </div>
 
           <Form.Item className="mb-0 pt-4 border-t">
             <Space>
               <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
                 保存
               </Button>
-              <Button onClick={() => navigate('/questions')}>取消</Button>
+              <Button onClick={() => navigate('/questions')}>返回列表</Button>
             </Space>
           </Form.Item>
         </Form>

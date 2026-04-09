@@ -64,6 +64,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       getSubjectStats: () => ipcRenderer.invoke('db:statistics:getSubjectStats'),
       getDailyStats: (days: number) => ipcRenderer.invoke('db:statistics:getDailyStats', days),
     },
+
+    // 录音相关
+    audio: {
+      getByQuestion: (questionId: number) => ipcRenderer.invoke('db:audio:getByQuestion', questionId),
+      getAudioData: (id: number) => ipcRenderer.invoke('db:audio:getAudioData', id),
+      create: (data: any) => ipcRenderer.invoke('db:audio:create', data),
+      delete: (id: number) => ipcRenderer.invoke('db:audio:delete', id),
+      updateTitle: (id: number, title: string) => ipcRenderer.invoke('db:audio:updateTitle', id, title),
+    },
   },
 })
 
@@ -110,6 +119,13 @@ export interface ElectronAPI {
       getOverview: () => Promise<any>
       getSubjectStats: () => Promise<any[]>
       getDailyStats: (days: number) => Promise<any[]>
+    }
+    audio: {
+      getByQuestion: (questionId: number) => Promise<any[]>
+      getAudioData: (id: number) => Promise<any>
+      create: (data: any) => Promise<number>
+      delete: (id: number) => Promise<void>
+      updateTitle: (id: number, title: string) => Promise<void>
     }
   }
 }

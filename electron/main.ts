@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase } from './database/init'
-import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService } from './database/services'
+import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService } from './database/services'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -125,3 +125,10 @@ ipcMain.handle('db:tags:delete', async (_event, id: number) => tagService.delete
 ipcMain.handle('db:statistics:getOverview', async () => statisticsService.getOverview())
 ipcMain.handle('db:statistics:getSubjectStats', async () => statisticsService.getSubjectStats())
 ipcMain.handle('db:statistics:getDailyStats', async (_event, days: number) => statisticsService.getDailyStats(days))
+
+// ==================== 录音相关 ====================
+ipcMain.handle('db:audio:getByQuestion', async (_event, questionId: number) => audioService.getByQuestion(questionId))
+ipcMain.handle('db:audio:getAudioData', async (_event, id: number) => audioService.getAudioData(id))
+ipcMain.handle('db:audio:create', async (_event, data: any) => audioService.create(data))
+ipcMain.handle('db:audio:delete', async (_event, id: number) => audioService.delete(id))
+ipcMain.handle('db:audio:updateTitle', async (_event, id: number, title: string) => audioService.updateTitle(id, title))

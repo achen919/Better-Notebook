@@ -212,6 +212,20 @@ function createTables() {
     )
   `)
 
+  // 录音记录表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS audio_recordings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question_id INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'explanation',
+      title TEXT,
+      duration INTEGER DEFAULT 0,
+      audio_data BLOB,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+    )
+  `)
+
   // 插入默认科目（如果表为空）
   const countResult = database.exec('SELECT COUNT(*) as count FROM subjects')
   const count = countResult.length > 0 ? (countResult[0].values[0] as any[])[0] : 0

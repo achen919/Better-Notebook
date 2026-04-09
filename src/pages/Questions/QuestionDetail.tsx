@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import {
   Card,
   Button,
@@ -14,12 +14,18 @@ import {
   Timeline,
   Popconfirm,
   message,
+  List,
+  Collapse,
 } from 'antd'
 import {
   ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,
   SyncOutlined,
+  PlayCircleOutlined,
+  PauseCircleOutlined,
+  DeleteOutlined as DeleteAudioOutlined,
+  AudioOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuestionStore, useReviewStore } from '../../stores'
@@ -28,18 +34,40 @@ import dayjs from 'dayjs'
 
 const { Title, Paragraph } = Typography
 
+interface AudioRecord {
+  id: number
+  question_id: number
+  type: string
+  title: string
+  duration: number
+  created_at: string
+}
+
 const QuestionDetailPage: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { currentQuestion, fetchQuestionById, deleteQuestion, loading } = useQuestionStore()
   const { reviewRecords, fetchReviewRecords } = useReviewStore()
+  const [audioRecords, setAudioRecords] = useState<AudioRecord[]>([])
+  const [playingId, setPlayingId] = useState<number | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     if (id) {
       fetchQuestionById(Number(id))
       fetchReviewRecords(Number(id))
+      loadAudioRecords(Number(id))
     }
   }, [id])
+
+  const loadAudioRecords = async (questionId: number) => {
+    try {
+      const records = await window.electronAPI.db.audio.getByQuestion(questionId)
+      setAudioRecords(records)
+    } catch (error) {
+      console.error('Failed to load audio records:', error)
+    }
+  }
 
   const handleDelete = async () => {
     if (!id) return
@@ -50,6 +78,49 @@ const QuestionDetailPage: React.FC = () => {
     } catch {
       message.error('删除失败')
     }
+  }
+
+  const playAudio = async (record: AudioRecord) => {
+    try {
+      const result = await window.electronAPI.db.audio.getAudioData(record.id)
+      if (result && result.audio_data) {
+        const uint8Array = new Uint8Array(Object.values(result.audio_data))
+        const blob = new Blob([uint8Array], { type: 'audio/webm' })
+        const url = URL.createObjectURL(blob)
+
+        if (audioRef.current) {
+          audioRef.current.src = url
+          audioRef.current.play()
+          setPlayingId(record.id)
+        }
+      }
+    } catch (error) {
+      message.error('播放失败')
+    }
+  }
+
+  const stopPlaying = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    setPlayingId(null)
+  }
+
+  const deleteAudioRecord = async (audioId: number) => {
+    try {
+      await window.electronAPI.db.audio.delete(audioId)
+      message.success('删除成功')
+      if (id) loadAudioRecords(Number(id))
+    } catch {
+      message.error('删除失败')
+    }
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
   const getDifficultyLabel = (difficulty: number) => {
@@ -63,6 +134,9 @@ const QuestionDetailPage: React.FC = () => {
       <Tag color={config.color} style={{ borderRadius: 4 }}>{config.label}</Tag>
     ) : feedback
   }
+
+  const explanationRecords = audioRecords.filter(r => r.type === 'explanation')
+  const answerRecords = audioRecords.filter(r => r.type === 'answer')
 
   if (loading) {
     return (
@@ -78,6 +152,8 @@ const QuestionDetailPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <audio ref={audioRef} onEnded={() => setPlayingId(null)} />
+
       <div className="flex justify-between items-center">
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/questions')}>
@@ -135,12 +211,81 @@ const QuestionDetailPage: React.FC = () => {
               </Paragraph>
             </div>
 
-            <div>
+            <div className="mb-4">
               <div className="text-gray-500 text-sm mb-2">解析</div>
               <Paragraph className="whitespace-pre-wrap bg-blue-50 p-3 rounded-lg mb-0">
                 {currentQuestion.analysis || '暂无解析'}
               </Paragraph>
             </div>
+
+            {/* 录音笔记 */}
+            {audioRecords.length > 0 && (
+              <Collapse
+                size="small"
+                items={[
+                  {
+                    key: '1',
+                    label: <span className="flex items-center gap-2"><AudioOutlined /> 录音笔记 ({audioRecords.length})</span>,
+                    children: (
+                      <div className="space-y-3">
+                        {explanationRecords.length > 0 && (
+                          <div>
+                            <div className="text-gray-500 text-xs mb-2">题目解释录音</div>
+                            <List
+                              size="small"
+                              dataSource={explanationRecords}
+                              renderItem={(record) => (
+                                <List.Item className="py-1 px-0">
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-2">
+                                      {playingId === record.id ? (
+                                        <Button type="text" size="small" icon={<PauseCircleOutlined className="text-blue-500" />} onClick={stopPlaying} />
+                                      ) : (
+                                        <Button type="text" size="small" icon={<PlayCircleOutlined />} onClick={() => playAudio(record)} />
+                                      )}
+                                      <span className="text-sm">{formatTime(record.duration)}</span>
+                                    </div>
+                                    <Popconfirm title="确定删除？" onConfirm={() => deleteAudioRecord(record.id)}>
+                                      <Button type="text" size="small" danger icon={<DeleteAudioOutlined />} />
+                                    </Popconfirm>
+                                  </div>
+                                </List.Item>
+                              )}
+                            />
+                          </div>
+                        )}
+                        {answerRecords.length > 0 && (
+                          <div>
+                            <div className="text-gray-500 text-xs mb-2">口述回答录音</div>
+                            <List
+                              size="small"
+                              dataSource={answerRecords}
+                              renderItem={(record) => (
+                                <List.Item className="py-1 px-0">
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-2">
+                                      {playingId === record.id ? (
+                                        <Button type="text" size="small" icon={<PauseCircleOutlined className="text-blue-500" />} onClick={stopPlaying} />
+                                      ) : (
+                                        <Button type="text" size="small" icon={<PlayCircleOutlined />} onClick={() => playAudio(record)} />
+                                      )}
+                                      <span className="text-sm">{formatTime(record.duration)}</span>
+                                    </div>
+                                    <Popconfirm title="确定删除？" onConfirm={() => deleteAudioRecord(record.id)}>
+                                      <Button type="text" size="small" danger icon={<DeleteAudioOutlined />} />
+                                    </Popconfirm>
+                                  </div>
+                                </List.Item>
+                              )}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            )}
           </Card>
         </Col>
 

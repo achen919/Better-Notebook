@@ -436,3 +436,63 @@ export const statisticsService = {
     `)
   },
 }
+
+// ==================== 录音相关操作 ====================
+
+export const audioService = {
+  // 获取某错题的所有录音
+  getByQuestion(questionId: number) {
+    return all(`
+      SELECT id, question_id, type, title, duration, created_at
+      FROM audio_recordings
+      WHERE question_id = ?
+      ORDER BY created_at DESC
+    `, [questionId])
+  },
+
+  // 获取录音数据
+  getAudioData(id: number) {
+    return get(`
+      SELECT audio_data FROM audio_recordings WHERE id = ?
+    `, [id])
+  },
+
+  // 创建录音
+  create(data: {
+    question_id: number
+    type: 'explanation' | 'answer'
+    title?: string
+    duration: number
+    audio_data: Uint8Array
+  }) {
+    const database = dbHelpers.getDatabase()
+    const stmt = database.prepare(`
+      INSERT INTO audio_recordings (question_id, type, title, duration, audio_data)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    stmt.bind([
+      data.question_id,
+      data.type,
+      data.title || '',
+      data.duration,
+      data.audio_data,
+    ])
+    stmt.step()
+    stmt.free()
+    dbHelpers.saveDatabase()
+
+    // 返回最后插入的 ID
+    const result = get('SELECT last_insert_rowid() as id')
+    return result?.id
+  },
+
+  // 删除录音
+  delete(id: number) {
+    run('DELETE FROM audio_recordings WHERE id = ?', [id])
+  },
+
+  // 更新录音标题
+  updateTitle(id: number, title: string) {
+    run('UPDATE audio_recordings SET title = ? WHERE id = ?', [title, id])
+  },
+}
