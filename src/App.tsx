@@ -4,6 +4,7 @@ import { MainLayout } from './components/Layout'
 import HomePage from './pages/Home'
 import TodoPage from './pages/Todo'
 import TasksPage from './pages/Tasks'
+import ChatPage from './pages/Chat'
 import QuestionsPage from './pages/Questions'
 import ReviewPage from './pages/Review'
 import StatisticsPage from './pages/Statistics'
@@ -17,6 +18,7 @@ const App: React.FC = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/todo" element={<TodoPage />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/questions/*" element={<QuestionsPage />} />
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/statistics" element={<StatisticsPage />} />

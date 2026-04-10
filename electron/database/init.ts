@@ -322,6 +322,47 @@ function createTables() {
     )
   `)
 
+  // AI配置表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS ai_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT DEFAULT 'openai',
+      api_key TEXT,
+      api_base_url TEXT,
+      model TEXT DEFAULT 'gpt-3.5-turbo',
+      system_prompt TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // AI聊天历史表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS chat_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      subject_id INTEGER,
+      saved_as_question INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE SET NULL
+    )
+  `)
+
+  // 弱势点记录表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS weak_points (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject_id INTEGER,
+      topic TEXT NOT NULL,
+      description TEXT,
+      severity INTEGER DEFAULT 2,
+      source TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE SET NULL
+    )
+  `)
+
   // 插入默认科目（如果表为空）
   const countResult = database.exec('SELECT COUNT(*) as count FROM subjects')
   const count = countResult.length > 0 ? (countResult[0].values[0] as any[])[0] : 0

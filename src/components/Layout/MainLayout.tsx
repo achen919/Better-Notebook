@@ -8,6 +8,7 @@ import {
   SettingOutlined,
   CheckSquareOutlined,
   ClockCircleOutlined,
+  RobotOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -36,6 +37,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: '/tasks',
       icon: <ClockCircleOutlined />,
       label: '任务倒计时',
+    },
+    {
+      key: '/chat',
+      icon: <RobotOutlined />,
+      label: 'AI助手',
     },
     {
       key: '/questions',

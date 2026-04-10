@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase } from './database/init'
-import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService } from './database/services'
+import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService } from './database/services'
+import { autoUpdater } from 'electron-updater'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -47,11 +48,96 @@ app.whenReady().then(async () => {
 
   createWindow()
 
+  // 自动更新逻辑
+  if (!isDev) {
+    autoUpdater.checkForUpdatesAndNotify()
+
+    // 自动检查更新（每小时）
+    setInterval(() => {
+      autoUpdater.checkForUpdatesAndNotify()
+    }, 60 * 60 * 1000)
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
     }
   })
+})
+
+// ==================== 自动更新相关 ====================
+
+// 配置自动更新
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = true
+
+// 检测到新版本
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('update-available', {
+    version: info.version,
+    releaseDate: info.releaseDate,
+    releaseNotes: info.releaseNotes,
+  })
+})
+
+// 没有新版本
+autoUpdater.on('update-not-available', () => {
+  mainWindow?.webContents.send('update-not-available')
+})
+
+// 下载进度
+autoUpdater.on('download-progress', (progress) => {
+  mainWindow?.webContents.send('download-progress', {
+    percent: progress.percent,
+    transferred: progress.transferred,
+    total: progress.total,
+  })
+})
+
+// 下载完成
+autoUpdater.on('update-downloaded', () => {
+  mainWindow?.webContents.send('update-downloaded')
+})
+
+// 更新错误
+autoUpdater.on('error', (error) => {
+  mainWindow?.webContents.send('update-error', error.message)
+})
+
+// IPC：手动检查更新
+ipcMain.handle('check-for-updates', async () => {
+  if (isDev) {
+    return { available: false, message: '开发环境不支持检查更新' }
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    return { available: result.updateInfo.version !== app.getVersion(), info: result.updateInfo }
+  } catch (error: any) {
+    return { available: false, error: error.message }
+  }
+})
+
+// IPC：下载更新
+ipcMain.handle('download-update', async () => {
+  if (isDev) return false
+  try {
+    await autoUpdater.downloadUpdate()
+    return true
+  } catch (error) {
+    return false
+  }
+})
+
+// IPC：安装更新
+ipcMain.handle('install-update', () => {
+  if (isDev) return false
+  autoUpdater.quitAndInstall()
+  return true
+})
+
+// IPC：获取当前版本
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion()
 })
 
 // 所有窗口关闭时退出应用
@@ -182,3 +268,22 @@ ipcMain.handle('db:milestones:getByTask', async (_event, taskId: number) => mile
 ipcMain.handle('db:milestones:create', async (_event, data: any) => milestoneService.create(data))
 ipcMain.handle('db:milestones:update', async (_event, id: number, data: any) => milestoneService.update(id, data))
 ipcMain.handle('db:milestones:delete', async (_event, id: number) => milestoneService.delete(id))
+
+// ==================== AI配置相关 ====================
+ipcMain.handle('db:aiSettings:get', async () => aiSettingsService.get())
+ipcMain.handle('db:aiSettings:save', async (_event, data: any) => aiSettingsService.save(data))
+ipcMain.handle('db:aiSettings:delete', async () => aiSettingsService.delete())
+
+// ==================== 聊天历史相关 ====================
+ipcMain.handle('db:chatHistory:getAll', async (_event, limit?: number) => chatHistoryService.getAll(limit))
+ipcMain.handle('db:chatHistory:add', async (_event, data: any) => chatHistoryService.add(data))
+ipcMain.handle('db:chatHistory:markAsSaved', async (_event, id: number) => chatHistoryService.markAsSaved(id))
+ipcMain.handle('db:chatHistory:clear', async () => chatHistoryService.clear())
+ipcMain.handle('db:chatHistory:delete', async (_event, id: number) => chatHistoryService.delete(id))
+
+// ==================== 弱势点相关 ====================
+ipcMain.handle('db:weakPoints:getAll', async () => weakPointService.getAll())
+ipcMain.handle('db:weakPoints:getBySubject', async (_event, subjectId: number) => weakPointService.getBySubject(subjectId))
+ipcMain.handle('db:weakPoints:add', async (_event, data: any) => weakPointService.add(data))
+ipcMain.handle('db:weakPoints:update', async (_event, id: number, data: any) => weakPointService.update(id, data))
+ipcMain.handle('db:weakPoints:delete', async (_event, id: number) => weakPointService.delete(id))

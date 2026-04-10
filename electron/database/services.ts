@@ -988,3 +988,136 @@ export const milestoneService = {
     run('DELETE FROM milestones WHERE id = ?', [id])
   },
 }
+
+// ==================== AI配置相关操作 ====================
+
+export const aiSettingsService = {
+  // 获取AI配置
+  get() {
+    return get(`SELECT * FROM ai_settings LIMIT 1`)
+  },
+
+  // 保存AI配置
+  save(data: { provider: string; api_key: string; api_base_url?: string; model?: string; system_prompt?: string }) {
+    const existing = get('SELECT id FROM ai_settings LIMIT 1')
+
+    if (existing) {
+      run(`
+        UPDATE ai_settings
+        SET provider = ?, api_key = ?, api_base_url = ?, model = ?, system_prompt = ?, updated_at = datetime('now', 'localtime')
+        WHERE id = ?
+      `, [data.provider, data.api_key, data.api_base_url || '', data.model || 'gpt-3.5-turbo', data.system_prompt || '', existing.id])
+      return existing.id
+    } else {
+      const result = run(`
+        INSERT INTO ai_settings (provider, api_key, api_base_url, model, system_prompt)
+        VALUES (?, ?, ?, ?, ?)
+      `, [data.provider, data.api_key, data.api_base_url || '', data.model || 'gpt-3.5-turbo', data.system_prompt || ''])
+      return result.lastInsertRowid
+    }
+  },
+
+  // 删除配置
+  delete() {
+    run('DELETE FROM ai_settings')
+  },
+}
+
+// ==================== 聊天历史相关操作 ====================
+
+export const chatHistoryService = {
+  // 获取聊天历史
+  getAll(limit: number = 100) {
+    return all(`
+      SELECT ch.*, s.name as subject_name
+      FROM chat_history ch
+      LEFT JOIN subjects s ON ch.subject_id = s.id
+      ORDER BY ch.created_at DESC
+      LIMIT ?
+    `, [limit])
+  },
+
+  // 添加聊天记录
+  add(data: { role: string; content: string; subject_id?: number }) {
+    const result = run(`
+      INSERT INTO chat_history (role, content, subject_id)
+      VALUES (?, ?, ?)
+    `, [data.role, data.content, data.subject_id || null])
+    return result.lastInsertRowid
+  },
+
+  // 标记为已保存为错题
+  markAsSaved(id: number) {
+    run('UPDATE chat_history SET saved_as_question = 1 WHERE id = ?', [id])
+  },
+
+  // 清空历史
+  clear() {
+    run('DELETE FROM chat_history')
+  },
+
+  // 删除单条记录
+  delete(id: number) {
+    run('DELETE FROM chat_history WHERE id = ?', [id])
+  },
+}
+
+// ==================== 弱势点相关操作 ====================
+
+export const weakPointService = {
+  // 获取所有弱势点
+  getAll() {
+    return all(`
+      SELECT wp.*, s.name as subject_name, s.color as subject_color
+      FROM weak_points wp
+      LEFT JOIN subjects s ON wp.subject_id = s.id
+      ORDER BY wp.severity DESC, wp.created_at DESC
+    `)
+  },
+
+  // 获取某科目的弱势点
+  getBySubject(subjectId: number) {
+    return all(`
+      SELECT * FROM weak_points
+      WHERE subject_id = ?
+      ORDER BY severity DESC, created_at DESC
+    `, [subjectId])
+  },
+
+  // 添加弱势点
+  add(data: { subject_id?: number; topic: string; description?: string; severity?: number; source?: string }) {
+    const result = run(`
+      INSERT INTO weak_points (subject_id, topic, description, severity, source)
+      VALUES (?, ?, ?, ?, ?)
+    `, [data.subject_id || null, data.topic, data.description || '', data.severity || 2, data.source || ''])
+    return result.lastInsertRowid
+  },
+
+  // 更新弱势点
+  update(id: number, data: { topic?: string; description?: string; severity?: number }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.topic !== undefined) {
+      fields.push('topic = ?')
+      values.push(data.topic)
+    }
+    if (data.description !== undefined) {
+      fields.push('description = ?')
+      values.push(data.description)
+    }
+    if (data.severity !== undefined) {
+      fields.push('severity = ?')
+      values.push(data.severity)
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE weak_points SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+    }
+  },
+
+  // 删除弱势点
+  delete(id: number) {
+    run('DELETE FROM weak_points WHERE id = ?', [id])
+  },
+}

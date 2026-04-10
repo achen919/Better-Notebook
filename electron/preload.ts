@@ -137,6 +137,57 @@ contextBridge.exposeInMainWorld('electronAPI', {
       update: (id: number, data: any) => ipcRenderer.invoke('db:milestones:update', id, data),
       delete: (id: number) => ipcRenderer.invoke('db:milestones:delete', id),
     },
+
+    // AI配置相关
+    aiSettings: {
+      get: () => ipcRenderer.invoke('db:aiSettings:get'),
+      save: (data: any) => ipcRenderer.invoke('db:aiSettings:save', data),
+      delete: () => ipcRenderer.invoke('db:aiSettings:delete'),
+    },
+
+    // 聊天历史相关
+    chatHistory: {
+      getAll: (limit?: number) => ipcRenderer.invoke('db:chatHistory:getAll', limit),
+      add: (data: any) => ipcRenderer.invoke('db:chatHistory:add', data),
+      markAsSaved: (id: number) => ipcRenderer.invoke('db:chatHistory:markAsSaved', id),
+      clear: () => ipcRenderer.invoke('db:chatHistory:clear'),
+      delete: (id: number) => ipcRenderer.invoke('db:chatHistory:delete', id),
+    },
+
+    // 弱势点相关
+    weakPoints: {
+      getAll: () => ipcRenderer.invoke('db:weakPoints:getAll'),
+      getBySubject: (subjectId: number) => ipcRenderer.invoke('db:weakPoints:getBySubject', subjectId),
+      add: (data: any) => ipcRenderer.invoke('db:weakPoints:add', data),
+      update: (id: number, data: any) => ipcRenderer.invoke('db:weakPoints:update', id, data),
+      delete: (id: number) => ipcRenderer.invoke('db:weakPoints:delete', id),
+    },
+  },
+
+  // 自动更新相关
+  updater: {
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+    downloadUpdate: () => ipcRenderer.invoke('download-update'),
+    installUpdate: () => ipcRenderer.invoke('install-update'),
+    getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    onUpdateAvailable: (callback: (info: any) => void) => {
+      ipcRenderer.on('update-available', (_event, info) => callback(info))
+    },
+    onUpdateNotAvailable: (callback: () => void) => {
+      ipcRenderer.on('update-not-available', () => callback())
+    },
+    onDownloadProgress: (callback: (progress: any) => void) => {
+      ipcRenderer.on('download-progress', (_event, progress) => callback(progress))
+    },
+    onUpdateDownloaded: (callback: () => void) => {
+      ipcRenderer.on('update-downloaded', () => callback())
+    },
+    onUpdateError: (callback: (error: string) => void) => {
+      ipcRenderer.on('update-error', (_event, error) => callback(error))
+    },
+    removeAllListeners: (channel: string) => {
+      ipcRenderer.removeAllListeners(channel)
+    },
   },
 })
 
@@ -241,6 +292,37 @@ export interface ElectronAPI {
       update: (id: number, data: any) => Promise<void>
       delete: (id: number) => Promise<void>
     }
+    aiSettings: {
+      get: () => Promise<any>
+      save: (data: any) => Promise<number>
+      delete: () => Promise<void>
+    }
+    chatHistory: {
+      getAll: (limit?: number) => Promise<any[]>
+      add: (data: any) => Promise<number>
+      markAsSaved: (id: number) => Promise<void>
+      clear: () => Promise<void>
+      delete: (id: number) => Promise<void>
+    }
+    weakPoints: {
+      getAll: () => Promise<any[]>
+      getBySubject: (subjectId: number) => Promise<any[]>
+      add: (data: any) => Promise<number>
+      update: (id: number, data: any) => Promise<void>
+      delete: (id: number) => Promise<void>
+    }
+  }
+  updater: {
+    checkForUpdates: () => Promise<any>
+    downloadUpdate: () => Promise<boolean>
+    installUpdate: () => Promise<boolean>
+    getAppVersion: () => Promise<string>
+    onUpdateAvailable: (callback: (info: any) => void) => void
+    onUpdateNotAvailable: (callback: () => void) => void
+    onDownloadProgress: (callback: (progress: any) => void) => void
+    onUpdateDownloaded: (callback: () => void) => void
+    onUpdateError: (callback: (error: string) => void) => void
+    removeAllListeners: (channel: string) => void
   }
 }
 
