@@ -164,6 +164,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  // AI API 调用
+  ai: {
+    call: (options: { url: string; apiKey: string; body: any }) =>
+      ipcRenderer.invoke('ai:call', options),
+  },
+
   // 自动更新相关
   updater: {
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
@@ -323,6 +329,9 @@ export interface ElectronAPI {
     onUpdateDownloaded: (callback: () => void) => void
     onUpdateError: (callback: (error: string) => void) => void
     removeAllListeners: (channel: string) => void
+  }
+  ai: {
+    call: (options: { url: string; apiKey: string; body: any }) => Promise<any>
   }
 }
 

@@ -127,6 +127,28 @@ function all(sql: string, params: any[] = []): any[] {
   return results
 }
 
+// 检查列是否存在
+function columnExists(tableName: string, columnName: string): boolean {
+  const database = getDatabase()
+  const result = database.exec(`PRAGMA table_info(${tableName})`)
+  if (result.length === 0) return false
+  const columns = result[0].values.map(row => (row as any[])[1])
+  return columns.includes(columnName)
+}
+
+// 添加缺失的列
+function runMigrations() {
+  const database = getDatabase()
+
+  // ai_settings 表 - 添加 system_prompt 列
+  if (!columnExists('ai_settings', 'system_prompt')) {
+    console.log('Migrating: Adding system_prompt column to ai_settings table')
+    database.run('ALTER TABLE ai_settings ADD COLUMN system_prompt TEXT')
+  }
+
+  saveDatabase()
+}
+
 // 创建所有表
 function createTables() {
   const database = getDatabase()
@@ -395,6 +417,9 @@ function createTables() {
       database.run('INSERT INTO tags (name, color) VALUES (?, ?)', [tag.name, tag.color])
     }
   }
+
+  // 运行数据库迁移（添加缺失的列）
+  runMigrations()
 
   saveDatabase()
 }

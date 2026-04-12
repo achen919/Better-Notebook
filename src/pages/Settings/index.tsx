@@ -18,6 +18,7 @@ import {
   Divider,
   Typography,
   Progress,
+  AutoComplete,
 } from 'antd'
 import {
   PlusOutlined,
@@ -43,9 +44,10 @@ const { TextArea } = Input
 // AI提供商配置
 const AI_PROVIDERS = [
   { value: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1' },
-  { value: 'anthropic', label: 'Anthropic (Claude)', baseUrl: 'https://api.anthropic.com/v1' },
+  { value: 'anthropic', label: 'Anthropic (Claude)', baseUrl: 'https://api.anthropic.com' },
   { value: 'zhipu', label: '智谱AI (GLM)', baseUrl: 'https://open.bigmodel.cn/api/paas/v4' },
-  { value: 'minimax', label: 'MiniMax', baseUrl: 'https://api.minimax.chat/v1' },
+  { value: 'minimax', label: 'MiniMax (OpenAI兼容)', baseUrl: 'https://api.minimax.chat/v1' },
+  { value: 'minimax-anthropic', label: 'MiniMax (Anthropic兼容)', baseUrl: 'https://api.minimaxi.com/anthropic' },
   { value: 'bytedance', label: '字节跳动 (豆包)', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
   { value: 'aliyun', label: '阿里云 (通义千问)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
   { value: 'tencent', label: '腾讯云 (混元)', baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1' },
@@ -516,8 +518,22 @@ const SettingsPage: React.FC = () => {
         }
       >
         <Form form={aiForm} layout="vertical" onFinish={handleAISubmit}>
-          <Form.Item name="provider" label="AI提供商" initialValue="openai">
-            <Select
+          <Form.Item
+            name="provider"
+            label="AI提供商"
+            initialValue="openai"
+            extra={<Text type="secondary" className="text-xs">选择后自动填充 API Base URL，也可自定义输入</Text>}
+          >
+            <AutoComplete
+              options={AI_PROVIDERS.map(p => ({
+                value: p.value,
+                label: p.label,
+              }))}
+              placeholder="选择或输入提供商名称"
+              filterOption={(inputValue, option) =>
+                option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1 ||
+                option!.label.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
+              }
               onChange={(value) => {
                 const config = AI_PROVIDERS.find(p => p.value === value)
                 if (config) {
@@ -526,35 +542,24 @@ const SettingsPage: React.FC = () => {
                   })
                 }
               }}
-            >
-              {AI_PROVIDERS.map(p => (
-                <Select.Option key={p.value} value={p.value}>{p.label}</Select.Option>
-              ))}
-            </Select>
+            />
           </Form.Item>
-          <Form.Item name="model" label="模型">
-            <Select
-              showSearch
-              optionFilterProp="children"
-              dropdownRender={(menu) => (
-                <>
-                  {menu}
-                  <Divider style={{ margin: '8px 0' }} />
-                  <div className="px-2 pb-1">
-                    <Text type="secondary" className="text-xs">或直接输入自定义模型名称</Text>
-                  </div>
-                </>
-              )}
-            >
-              {ALL_MODELS.map(m => (
-                <Select.Option key={m.value} value={m.value}>
-                  <span>
-                    {m.label}
-                    {m.provider && <Text type="secondary" className="text-xs ml-2">({m.provider})</Text>}
-                  </span>
-                </Select.Option>
-              ))}
-            </Select>
+          <Form.Item
+            name="model"
+            label="模型"
+            extra={<Text type="secondary" className="text-xs">可从下拉列表选择或直接输入自定义模型名称</Text>}
+          >
+            <AutoComplete
+              options={ALL_MODELS.map(m => ({
+                value: m.value,
+                label: `${m.label} (${m.provider})`,
+              }))}
+              placeholder="选择或输入模型名称"
+              filterOption={(inputValue, option) =>
+                option!.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1 ||
+                option!.label.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
+              }
+            />
           </Form.Item>
           <Form.Item
             name="api_key"

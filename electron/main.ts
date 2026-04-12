@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase } from './database/init'
 import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService } from './database/services'
 import { autoUpdater } from 'electron-updater'
+import https from 'https'
+import http from 'http'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -44,7 +46,12 @@ function createWindow() {
 // 应用准备就绪
 app.whenReady().then(async () => {
   // 初始化数据库
-  await initDatabase()
+  try {
+    await initDatabase()
+    console.log('Database initialized successfully')
+  } catch (error) {
+    console.error('Failed to initialize database:', error)
+  }
 
   createWindow()
 
@@ -287,3 +294,90 @@ ipcMain.handle('db:weakPoints:getBySubject', async (_event, subjectId: number) =
 ipcMain.handle('db:weakPoints:add', async (_event, data: any) => weakPointService.add(data))
 ipcMain.handle('db:weakPoints:update', async (_event, id: number, data: any) => weakPointService.update(id, data))
 ipcMain.handle('db:weakPoints:delete', async (_event, id: number) => weakPointService.delete(id))
+
+// ==================== AI API 调用 ====================
+ipcMain.handle('ai:call', async (_event, options: { url: string; apiKey: string; body: any }) => {
+  return new Promise((resolve, reject) => {
+    const { url, apiKey, body } = options
+
+    console.log('AI API Call:', { url, model: body?.model })
+
+    try {
+      const parsedUrl = new URL(url)
+      const isHttps = parsedUrl.protocol === 'https:'
+      const client = isHttps ? https : http
+
+      // 检测是否是 Anthropic 格式
+      const isAnthropic = url.includes('/anthropic') || url.includes('/messages')
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (isAnthropic) {
+        // Anthropic 使用 x-api-key
+        headers['x-api-key'] = apiKey
+        headers['anthropic-version'] = '2023-06-01'
+      } else {
+        // OpenAI 格式使用 Authorization Bearer
+        headers['Authorization'] = `Bearer ${apiKey}`
+      }
+
+      const requestOptions = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'POST',
+        headers,
+      }
+
+      console.log('Request options:', { hostname: requestOptions.hostname, path: requestOptions.path })
+
+      const req = client.request(requestOptions, (res) => {
+        let data = ''
+
+        res.on('data', (chunk) => {
+          data += chunk
+        })
+
+        res.on('end', () => {
+          console.log('Response status:', res.statusCode)
+          console.log('Response body:', data.substring(0, 1000))
+          try {
+            const jsonData = JSON.parse(data)
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(jsonData)
+            } else {
+              console.error('API Error Response:', data.substring(0, 500))
+              reject(new Error(jsonData.error?.message || jsonData.message || jsonData.msg || `请求失败: HTTP ${res.statusCode}`))
+            }
+          } catch (e) {
+            console.error('Failed to parse response:', data.substring(0, 500))
+            // 检查是否是 HTML 响应（通常是 404 页面）
+            if (data.includes('<html') || data.includes('<!DOCTYPE')) {
+              reject(new Error(`API 地址错误 (HTTP ${res.statusCode})，请检查 API Base URL 是否正确`))
+            } else {
+              reject(new Error(`解析响应失败: ${data.substring(0, 200)}`))
+            }
+          }
+        })
+      })
+
+      req.on('error', (error) => {
+        console.error('Network error:', error)
+        reject(new Error(`网络请求失败: ${error.message}`))
+      })
+
+      req.setTimeout(60000, () => {
+        req.destroy()
+        reject(new Error('请求超时'))
+      })
+
+      req.write(JSON.stringify(body))
+      req.end()
+    } catch (error: any) {
+      console.error('Request config error:', error)
+      reject(new Error(`请求配置错误: ${error.message}`))
+    }
+  })
+})

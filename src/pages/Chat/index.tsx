@@ -153,7 +153,8 @@ const ChatPage: React.FC = () => {
       // 分析弱势点
       await analyzeWeakPoints(userMessage, response)
     } catch (error: any) {
-      message.error(`AI调用失败: ${error.message}`)
+      const errorMsg = error.message || '未知错误'
+      message.error(`AI调用失败: ${errorMsg}`, 5)
       console.error('AI call failed:', error)
     } finally {
       setLoading(false)
@@ -161,7 +162,14 @@ const ChatPage: React.FC = () => {
   }
 
   const callAI = async (message: string, settings: AISettings): Promise<string> => {
-    const baseUrl = settings.api_base_url || 'https://api.openai.com/v1'
+    let baseUrl = settings.api_base_url || 'https://api.openai.com/v1'
+
+    // 确保URL格式正确
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = 'https://' + baseUrl
+    }
+    // 移除末尾的斜杠
+    baseUrl = baseUrl.replace(/\/+$/, '')
 
     // 构建系统提示（使用自定义或默认）
     const defaultSystemPrompt = `你是一个学习助手，帮助学生解答问题、理解概念、分析错误原因。
@@ -188,13 +196,31 @@ const ChatPage: React.FC = () => {
 
     const systemPrompt = baseSystemPrompt + contextInfo + weakPointsInfo
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.api_key}`,
-      },
-      body: JSON.stringify({
+    // 检测 API 格式（OpenAI 兼容 vs Anthropic 兼容）
+    const isAnthropic = baseUrl.includes('/anthropic') || baseUrl.includes('anthropic')
+
+    let apiUrl: string
+    let requestBody: any
+
+    if (isAnthropic) {
+      // Anthropic 格式
+      apiUrl = `${baseUrl}/v1/messages`
+      requestBody = {
+        model: settings.model || 'claude-3-haiku-20240307',
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [
+          ...messages.slice(-10).map(m => ({
+            role: m.role,
+            content: m.content,
+          })),
+          { role: 'user', content: message },
+        ],
+      }
+    } else {
+      // OpenAI 兼容格式
+      apiUrl = `${baseUrl}/chat/completions`
+      requestBody = {
         model: settings.model || 'gpt-3.5-turbo',
         messages: [
           { role: 'system', content: systemPrompt },
@@ -206,16 +232,57 @@ const ChatPage: React.FC = () => {
         ],
         temperature: 0.7,
         max_tokens: 2000,
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'API请求失败')
+      }
     }
 
-    const data = await response.json()
-    return data.choices[0]?.message?.content || '抱歉，我无法生成回复。'
+    console.log('AI Request:', {
+      url: apiUrl,
+      model: requestBody.model,
+      format: isAnthropic ? 'Anthropic' : 'OpenAI',
+    })
+
+    try {
+      const data = await window.electronAPI.ai.call({
+        url: apiUrl,
+        apiKey: settings.api_key,
+        body: requestBody,
+      })
+
+      console.log('AI Response:', JSON.stringify(data, null, 2))
+
+      // 处理不同的响应格式
+      // 1. OpenAI 格式: choices[0].message.content
+      if (data.choices?.[0]?.message?.content) {
+        return data.choices[0].message.content
+      }
+      // 2. OpenAI 格式 (text): choices[0].text
+      if (data.choices?.[0]?.text) {
+        return data.choices[0].text
+      }
+      // 3. Anthropic/MiniMax 格式: content 数组
+      if (Array.isArray(data.content)) {
+        // 找到 type === 'text' 的元素
+        const textBlock = data.content.find((block: any) => block.type === 'text')
+        if (textBlock?.text) {
+          return textBlock.text
+        }
+        // 或者直接取第一个元素的 text
+        if (data.content[0]?.text) {
+          return data.content[0].text
+        }
+      }
+      // 4. 直接返回 content 字段（如果是字符串）
+      if (typeof data.content === 'string') {
+        return data.content
+      }
+
+      // 如果无法解析，打印完整响应并返回错误
+      console.error('Unable to parse response:', data)
+      throw new Error('无法解析AI响应格式')
+    } catch (error: any) {
+      console.error('AI call failed:', error)
+      throw error
+    }
   }
 
   const analyzeWeakPoints = async (question: string, answer: string) => {
@@ -323,7 +390,7 @@ ${weakPoints.map(wp => `- [${wp.subject_name || '未分类'}] ${wp.topic}: ${wp.
         created_at: new Date().toISOString(),
       }])
     } catch (error: any) {
-      message.error(error.message)
+      message.error(`获取建议失败: ${error.message || '未知错误'}`, 5)
     } finally {
       setLoading(false)
     }
