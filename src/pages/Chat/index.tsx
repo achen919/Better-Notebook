@@ -3,7 +3,6 @@ import {
   Card,
   Input,
   Button,
-  List,
   Typography,
   Empty,
   Space,
@@ -13,20 +12,16 @@ import {
   message,
   Spin,
   Avatar,
-  Dropdown,
   Tooltip,
 } from 'antd'
 import {
   SendOutlined,
-  DeleteOutlined,
   SaveOutlined,
   BulbOutlined,
-  BookOutlined,
   RobotOutlined,
   UserOutlined,
   SettingOutlined,
   ClearOutlined,
-  PlusOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 
@@ -285,7 +280,7 @@ const ChatPage: React.FC = () => {
     }
   }
 
-  const analyzeWeakPoints = async (question: string, answer: string) => {
+  const analyzeWeakPoints = async (question: string, _answer: string) => {
     // 简单的弱势点识别逻辑
     const keywords = ['不理解', '不会', '不懂', '混淆', '记不住', '总是错', '搞错', '错误']
     const foundKeyword = keywords.find(k => question.includes(k))

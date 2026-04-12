@@ -14,19 +14,15 @@ import {
   DatePicker,
   Select,
   Tag,
-  Space,
-  Divider,
   Checkbox,
   Table,
-  Collapse,
   Badge,
+  Statistic,
 } from 'antd'
 import {
   PlusOutlined,
   DeleteOutlined,
-  EditOutlined,
   ClockCircleOutlined,
-  FlagOutlined,
   CheckCircleOutlined,
   RightOutlined,
   CalendarOutlined,
@@ -35,8 +31,7 @@ import {
 import dayjs from 'dayjs'
 
 const { TextArea } = Input
-const { Title, Text, Paragraph } = Typography
-const { Panel } = Collapse
+const { Title, Text } = Typography
 
 interface Task {
   id: number
@@ -87,7 +82,6 @@ const TasksPage: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [taskModalVisible, setTaskModalVisible] = useState(false)
   const [detailModalVisible, setDetailModalVisible] = useState(false)
-  const [editMode, setEditMode] = useState(false)
 
   // 新任务表单
   const [newTask, setNewTask] = useState({
@@ -224,7 +218,6 @@ const TasksPage: React.FC = () => {
       loadTaskDetails(selectedTask.id)
 
       // 更新任务进度
-      const newCount = subitems.length + 1
       await window.electronAPI.db.tasks.update(selectedTask.id, { current_value: 0 })
     } catch (error) {
       message.error('添加失败')

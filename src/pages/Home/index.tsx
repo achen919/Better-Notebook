@@ -8,7 +8,6 @@ import {
   PlusOutlined,
   RightOutlined,
   CheckSquareOutlined,
-  FlagOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useStatisticsStore, useReviewStore, useQuestionStore } from '../../stores'
@@ -36,13 +35,12 @@ interface UpcomingTask {
 }
 
 const priorityColors = ['#52c41a', '#1890ff', '#fa8c16', '#f5222d']
-const priorityLabels = ['低', '中', '高', '紧急']
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate()
   const { overview, fetchOverview } = useStatisticsStore()
   const { todayQuestions, fetchTodayReviews } = useReviewStore()
-  const { questions, fetchQuestions } = useQuestionStore()
+  const { fetchQuestions } = useQuestionStore()
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [todoStats, setTodoStats] = useState({ total: 0, completed: 0 })
   const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([])
@@ -117,8 +115,6 @@ const HomePage: React.FC = () => {
     const mins = minutes % 60
     return hours > 0 ? `${hours}h${mins > 0 ? mins + 'm' : ''}` : `${mins}m`
   }
-
-  const recentQuestions = questions.slice(0, 5)
 
   const masteryPercent = overview && overview.total_questions > 0
     ? Math.round((overview.mastered_questions / overview.total_questions) * 100)

@@ -14,7 +14,6 @@ import {
   Row,
   Col,
   DatePicker,
-  Divider,
   Select,
   Statistic,
   Tabs,
@@ -25,17 +24,12 @@ import {
   DeleteOutlined,
   CalendarOutlined,
   ClockCircleOutlined,
-  EditOutlined,
-  SmileOutlined,
-  MehOutlined,
-  FrownOutlined,
   BarChartOutlined,
-  TimerOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 
 const { TextArea } = Input
-const { Title, Text, Paragraph } = Typography
+const { Text, Paragraph } = Typography
 
 interface TodoItem {
   id: number
@@ -52,6 +46,7 @@ interface DailySummary {
   summary: string
   mood: string
   created_at: string
+  updated_at?: string
 }
 
 interface LearningTimeRecord {
@@ -265,12 +260,6 @@ const TodoPage: React.FC = () => {
   const statsTotalTodos = todoStats.reduce((sum, s) => sum + s.total, 0)
   const statsCompletedTodos = todoStats.reduce((sum, s) => sum + s.completed, 0)
   const statsTotalTime = learningTimeStats.reduce((sum, s) => sum + s.total_duration, 0)
-
-  // 图表数据
-  const chartData = learningTimeStats.map(s => ({
-    date: s.date,
-    time: s.total_duration,
-  }))
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">

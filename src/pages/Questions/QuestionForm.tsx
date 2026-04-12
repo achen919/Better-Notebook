@@ -9,10 +9,9 @@ import {
   Row,
   Col,
   Space,
-  Divider,
   Alert,
 } from 'antd'
-import { SaveOutlined, ArrowLeftOutlined, AudioOutlined } from '@ant-design/icons'
+import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuestionStore, useSubjectStore } from '../../stores'
 import AudioRecorder from '../../components/AudioRecorder'

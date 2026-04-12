@@ -15,7 +15,6 @@ import {
   Collapse,
   Empty,
   Popconfirm,
-  Divider,
   Typography,
   Progress,
   AutoComplete,
@@ -38,7 +37,7 @@ import { useSubjectStore } from '../../stores'
 import type { Subject, Tag as TagType, Chapter } from '../../types'
 
 const { Panel } = Collapse
-const { Text } = Typography
+const { Text, Paragraph } = Typography
 const { TextArea } = Input
 
 // AI提供商配置
@@ -177,7 +176,7 @@ const SettingsPage: React.FC = () => {
   }
 
   const setupUpdateListeners = () => {
-    window.electronAPI.updater.onUpdateAvailable((info) => {
+    window.electronAPI.updater.onUpdateAvailable((info: any) => {
       setUpdateInfo(info)
       setCheckingUpdate(false)
     })
@@ -186,7 +185,7 @@ const SettingsPage: React.FC = () => {
       setCheckingUpdate(false)
     })
 
-    window.electronAPI.updater.onDownloadProgress((progress) => {
+    window.electronAPI.updater.onDownloadProgress((progress: any) => {
       setDownloadProgress(Math.round(progress.percent))
     })
 
@@ -195,7 +194,7 @@ const SettingsPage: React.FC = () => {
       setUpdateDownloaded(true)
     })
 
-    window.electronAPI.updater.onUpdateError((error) => {
+    window.electronAPI.updater.onUpdateError((error: string) => {
       console.error('Update error:', error)
       setCheckingUpdate(false)
       setDownloading(false)

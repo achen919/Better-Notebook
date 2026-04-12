@@ -10,7 +10,6 @@ import {
   Row,
   Col,
   Collapse,
-  message,
 } from 'antd'
 import {
   ArrowLeftOutlined,

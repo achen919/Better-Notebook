@@ -12,7 +12,7 @@ import { useStatisticsStore } from '../../stores'
 const { Title } = Typography
 
 const StatisticsPage: React.FC = () => {
-  const { overview, subjectStats, dailyStats, refreshAll, loading } = useStatisticsStore()
+  const { overview, subjectStats, dailyStats, refreshAll } = useStatisticsStore()
 
   useEffect(() => {
     refreshAll()
