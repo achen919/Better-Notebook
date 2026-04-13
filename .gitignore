@@ -25,6 +25,9 @@ npm-debug.log*
 .env.local
 .env.*.local
 
+# Release script (contains token)
+release.sh
+
 # SQLite database (optional, comment out if you want to track)
 # *.db
 # *.sqlite
@@ -32,3 +35,4 @@ npm-debug.log*
 # Temporary files
 *.tmp
 *.temp
+release.sh
