@@ -12,7 +12,7 @@
   "publish": {
     "provider": "github",
     "owner": "achen919",
-    "repo": "ebbinghaus-notebook"
+    "repo": "Ebbinghaus-Forgetting-Curve-Notebook-"
   },
   "mac": {
     "category": "public.app-category.education",
