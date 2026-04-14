@@ -14,6 +14,7 @@
     "owner": "achen919",
     "repo": "Ebbinghaus-Forgetting-Curve-Notebook-"
   },
+  "artifactName": "${productName}-${version}-${arch}.${ext}",
   "mac": {
     "category": "public.app-category.education",
     "target": [
