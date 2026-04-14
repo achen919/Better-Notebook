@@ -9,6 +9,12 @@
     "dist/**/*",
     "dist-electron/**/*"
   ],
+  "extraResources": [
+    {
+      "from": "node_modules/sql.js/dist/sql-wasm.wasm",
+      "to": "sql-wasm.wasm"
+    }
+  ],
   "publish": {
     "provider": "github",
     "owner": "achen919",
