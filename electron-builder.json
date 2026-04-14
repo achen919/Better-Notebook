@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.ebbinghaus.notebook",
-  "productName": "艾宾浩斯错题本",
+  "productName": "Ebbinghaus Notebook",
   "directories": {
     "output": "release"
   },
