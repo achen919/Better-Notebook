@@ -18,7 +18,7 @@
   "publish": {
     "provider": "github",
     "owner": "achen919",
-    "repo": "Ebbinghaus-Forgetting-Curve-Notebook-"
+    "repo": "Better-Notebook"
   },
   "artifactName": "${productName}-${version}-${arch}.${ext}",
   "mac": {

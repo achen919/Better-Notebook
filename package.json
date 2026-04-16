@@ -1,12 +1,13 @@
 {
   "name": "ebbinghaus-notebook",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "艾宾浩斯遗忘曲线错题本应用",
   "main": "dist-electron/main.js",
   "author": "achen919",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
+    "harness": "node scripts/harness-run.mjs",
     "build": "tsc && vite build && electron-builder",
     "build:web": "tsc && vite build",
     "build:mac": "tsc && vite build && electron-builder --mac",
