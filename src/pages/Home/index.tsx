@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Card, Row, Col, Statistic, Progress, Button, List, Tag, Empty, Typography, Checkbox, Badge } from 'antd'
 import {
   BookOutlined,
@@ -46,16 +46,7 @@ const HomePage: React.FC = () => {
   const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([])
   const [todayLearningTime, setTodayLearningTime] = useState(0)
 
-  useEffect(() => {
-    fetchOverview()
-    fetchTodayReviews()
-    fetchQuestions()
-    loadTodayTodos()
-    loadUpcomingTasks()
-    loadTodayLearningTime()
-  }, [])
-
-  const loadTodayTodos = async () => {
+  const loadTodayTodos = useCallback(async () => {
     try {
       const today = dayjs().format('YYYY-MM-DD')
       const result = await window.electronAPI.db.todo.getByDate(today)
@@ -65,18 +56,18 @@ const HomePage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load todos:', error)
     }
-  }
+  }, [])
 
-  const loadUpcomingTasks = async () => {
+  const loadUpcomingTasks = useCallback(async () => {
     try {
       const result = await window.electronAPI.db.tasks.getUpcoming(7)
       setUpcomingTasks(result.slice(0, 5))
     } catch (error) {
       console.error('Failed to load upcoming tasks:', error)
     }
-  }
+  }, [])
 
-  const loadTodayLearningTime = async () => {
+  const loadTodayLearningTime = useCallback(async () => {
     try {
       const today = dayjs().format('YYYY-MM-DD')
       const result = await window.electronAPI.db.learningTime.getTotalByDate(today)
@@ -84,7 +75,16 @@ const HomePage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load learning time:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchOverview()
+    fetchTodayReviews()
+    fetchQuestions()
+    loadTodayTodos()
+    loadUpcomingTasks()
+    loadTodayLearningTime()
+  }, [fetchOverview, fetchQuestions, fetchTodayReviews, loadTodayLearningTime, loadTodayTodos, loadUpcomingTasks])
 
   const toggleTodo = async (id: number, completed: boolean) => {
     try {
@@ -132,7 +132,7 @@ const HomePage: React.FC = () => {
     <div className="space-y-5">
       {/* 欢迎区域 */}
       <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-5 text-white shadow-lg">
-        <h1 className="text-xl font-bold mb-1">欢迎使用艾宾浩斯错题本</h1>
+        <h1 className="text-xl font-bold mb-1">欢迎使用 Better-Notebook</h1>
         <p className="text-blue-100 text-sm">基于科学记忆曲线，帮助你高效复习错题</p>
       </div>
 

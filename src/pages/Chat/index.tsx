@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Card,
@@ -25,6 +25,7 @@ import {
   ClearOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import type { Question, Subject } from '../../types'
 
 const { TextArea } = Input
 const { Text, Paragraph } = Typography
@@ -54,13 +55,34 @@ interface WeakPoint {
   subject_name?: string
 }
 
+interface ChatHistoryInput {
+  role: 'user' | 'assistant'
+  content: string
+  subject_id?: number
+}
+
+interface AITextBlock {
+  type: string
+  text?: string
+}
+
+interface AIResponse {
+  choices?: Array<{
+    message?: {
+      content?: string
+    }
+    text?: string
+  }>
+  content?: string | AITextBlock[]
+}
+
 const ChatPage: React.FC = () => {
   const navigate = useNavigate()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [aiSettings, setAiSettings] = useState<AISettings | null>(null)
-  const [subjects, setSubjects] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [selectedSubject, setSelectedSubject] = useState<number | undefined>()
   const [weakPoints, setWeakPoints] = useState<WeakPoint[]>([])
   const [saveModalVisible, setSaveModalVisible] = useState(false)
@@ -68,19 +90,15 @@ const ChatPage: React.FC = () => {
   const [newQuestionTitle, setNewQuestionTitle] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    loadData()
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, scrollToBottom])
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [settings, history, subjectList, weakPointsList] = await Promise.all([
         window.electronAPI.db.aiSettings.get(),
@@ -95,7 +113,15 @@ const ChatPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load data:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const getErrorMessage = (error: unknown) => (
+    error instanceof Error ? error.message : '未知错误'
+  )
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || loading) return
@@ -114,7 +140,7 @@ const ChatPage: React.FC = () => {
       role: 'user',
       content: userMessage,
       subject_id: selectedSubject,
-    })
+    } as ChatHistoryInput)
 
     const newUserMsg: ChatMessage = {
       id: userId,
@@ -148,9 +174,9 @@ const ChatPage: React.FC = () => {
       setMessages(prev => [...prev, newAIMsg])
 
       // 分析弱势点
-      await analyzeWeakPoints(userMessage, response)
-    } catch (error: any) {
-      const errorMsg = error.message || '未知错误'
+      await analyzeWeakPoints(userMessage)
+    } catch (error) {
+      const errorMsg = getErrorMessage(error)
       message.error(`AI调用失败: ${errorMsg}`, 5)
       console.error('AI call failed:', error)
     } finally {
@@ -177,14 +203,14 @@ const ChatPage: React.FC = () => {
     const baseSystemPrompt = settings.system_prompt?.trim() || defaultSystemPrompt
 
     // 获取相关错题作为上下文
-    const questions = await window.electronAPI.db.questions.getAll()
-    const recentQuestions = questions.slice(0, 10).map((q: any) => ({
+    const questions = await window.electronAPI.db.questions.getAll() as Question[]
+    const recentQuestions = questions.slice(0, 10).map((q) => ({
       title: q.title,
       subject: q.subject_name,
     }))
 
     const contextInfo = recentQuestions.length > 0
-      ? `\n\n学生最近整理的错题（可作为参考）：\n${recentQuestions.map((q: any) => `- [${q.subject || '未分类'}] ${q.title}`).join('\n')}`
+      ? `\n\n学生最近整理的错题（可作为参考）：\n${recentQuestions.map((q) => `- [${q.subject || '未分类'}] ${q.title}`).join('\n')}`
       : ''
 
     const weakPointsInfo = weakPoints.length > 0
@@ -197,7 +223,7 @@ const ChatPage: React.FC = () => {
     const isAnthropic = baseUrl.includes('/anthropic') || baseUrl.includes('anthropic')
 
     let apiUrl: string
-    let requestBody: any
+    let requestBody: Record<string, unknown>
 
     if (isAnthropic) {
       // Anthropic 格式
@@ -243,7 +269,7 @@ const ChatPage: React.FC = () => {
         url: apiUrl,
         apiKey: settings.api_key,
         body: requestBody,
-      })
+      }) as AIResponse
 
       console.log('AI Response:', JSON.stringify(data, null, 2))
 
@@ -259,7 +285,7 @@ const ChatPage: React.FC = () => {
       // 3. Anthropic/MiniMax 格式: content 数组
       if (Array.isArray(data.content)) {
         // 找到 type === 'text' 的元素
-        const textBlock = data.content.find((block: any) => block.type === 'text')
+        const textBlock = data.content.find((block) => block.type === 'text')
         if (textBlock?.text) {
           return textBlock.text
         }
@@ -276,13 +302,13 @@ const ChatPage: React.FC = () => {
       // 如果无法解析，打印完整响应并返回错误
       console.error('Unable to parse response:', data)
       throw new Error('无法解析AI响应格式')
-    } catch (error: any) {
+    } catch (error) {
       console.error('AI call failed:', error)
       throw error
     }
   }
 
-  const analyzeWeakPoints = async (question: string, _answer: string) => {
+  const analyzeWeakPoints = async (question: string) => {
     // 简单的弱势点识别逻辑
     const keywords = ['不理解', '不会', '不懂', '混淆', '记不住', '总是错', '搞错', '错误']
     const foundKeyword = keywords.find(k => question.includes(k))
@@ -378,7 +404,7 @@ ${weakPoints.map(wp => `- [${wp.subject_name || '未分类'}] ${wp.topic}: ${wp.
       const id = await window.electronAPI.db.chatHistory.add({
         role: 'assistant',
         content: `📚 **学习建议**\n\n${response}`,
-      })
+      } as ChatHistoryInput)
 
       setMessages(prev => [...prev, {
         id,
@@ -386,8 +412,8 @@ ${weakPoints.map(wp => `- [${wp.subject_name || '未分类'}] ${wp.topic}: ${wp.
         content: `📚 **学习建议**\n\n${response}`,
         created_at: new Date().toISOString(),
       }])
-    } catch (error: any) {
-      message.error(`获取建议失败: ${error.message || '未知错误'}`, 5)
+    } catch (error) {
+      message.error(`获取建议失败: ${getErrorMessage(error)}`, 5)
     } finally {
       setLoading(false)
     }

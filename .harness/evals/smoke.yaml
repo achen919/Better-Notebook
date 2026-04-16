@@ -1,0 +1,32 @@
+scenarios:
+  - id: app-start
+    title: 应用可启动
+    type: automated
+    checks:
+      - yarn lint
+      - yarn build:web
+
+  - id: question-crud
+    title: 错题基础流程
+    type: manual
+    steps:
+      - 打开应用并进入错题页
+      - 新增一条错题，填写标题、内容、学科或标签
+      - 返回列表确认数据展示正常
+      - 重新打开详情页确认内容正确
+
+  - id: review-flow
+    title: 复习反馈流程
+    type: manual
+    steps:
+      - 进入复习页面并开始一次复习
+      - 分别尝试生疏、模糊、熟悉、精通中的任一反馈
+      - 确认复习记录和下次复习时间已更新
+
+  - id: settings-ai
+    title: AI 设置保存
+    type: manual
+    steps:
+      - 进入设置页并填写 AI 提供商、模型或 system prompt
+      - 保存设置
+      - 重新进入页面确认配置被持久化

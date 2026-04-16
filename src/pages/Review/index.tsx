@@ -42,7 +42,7 @@ const ReviewPage: React.FC = () => {
 
   useEffect(() => {
     fetchTodayReviews()
-  }, [])
+  }, [fetchTodayReviews])
 
   useEffect(() => {
     setShowAnswer(false)

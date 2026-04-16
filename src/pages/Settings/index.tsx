@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Form,
@@ -34,11 +34,53 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons'
 import { useSubjectStore } from '../../stores'
-import type { Subject, Tag as TagType, Chapter } from '../../types'
+import type { Subject, Tag as TagType, Chapter, CreateChapterInput } from '../../types'
 
 const { Panel } = Collapse
 const { Text, Paragraph } = Typography
 const { TextArea } = Input
+
+interface AISettings {
+  provider: string
+  api_key: string
+  api_base_url: string
+  model: string
+  system_prompt?: string
+}
+
+interface FormColorValue {
+  toHexString?: () => string
+}
+
+interface SubjectFormValues {
+  name: string
+  color?: string | FormColorValue
+  icon?: string
+}
+
+interface TagFormValues {
+  name: string
+  color?: string | FormColorValue
+}
+
+interface UpdateInfo {
+  version: string
+  releaseNotes?: string | {
+    note?: string
+  }
+}
+
+interface DownloadProgress {
+  percent: number
+}
+
+const getHexColor = (value: string | FormColorValue | undefined, fallback: string) => {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  return value?.toHexString?.() || fallback
+}
 
 // AI提供商配置
 const AI_PROVIDERS = [
@@ -140,43 +182,46 @@ const SettingsPage: React.FC = () => {
   const [aiForm] = Form.useForm()
 
   // AI设置
-  const [aiSettings, setAiSettings] = useState<any>(null)
+  const [aiSettings, setAiSettings] = useState<AISettings | null>(null)
   const [aiSaving, setAiSaving] = useState(false)
 
   // 自动更新
   const [appVersion, setAppVersion] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
-  const [updateInfo, setUpdateInfo] = useState<any>(null)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
 
-  useEffect(() => {
-    fetchSubjects()
-    fetchTags()
-    loadAISettings()
-    loadAppVersion()
-    setupUpdateListeners()
-  }, [])
-
-  useEffect(() => {
-    if (selectedSubjectId) {
-      fetchChapters(selectedSubjectId)
-    }
-  }, [selectedSubjectId])
-
-  // ==================== 自动更新相关 ====================
-  const loadAppVersion = async () => {
+  const loadAppVersion = useCallback(async () => {
     try {
       const version = await window.electronAPI.updater.getAppVersion()
       setAppVersion(version)
     } catch (error) {
       console.error('Failed to get app version:', error)
     }
-  }
+  }, [])
 
-  const setupUpdateListeners = () => {
-    window.electronAPI.updater.onUpdateAvailable((info: any) => {
+  const loadAISettings = useCallback(async () => {
+    try {
+      const settings = await window.electronAPI.db.aiSettings.get() as AISettings | null
+      setAiSettings(settings)
+      if (settings) {
+        aiForm.setFieldsValue({
+          provider: settings.provider || 'openai',
+          api_key: settings.api_key || '',
+          api_base_url: settings.api_base_url || '',
+          model: settings.model || 'gpt-3.5-turbo',
+          system_prompt: settings.system_prompt || '',
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load AI settings:', error)
+    }
+  }, [aiForm])
+
+  const setupUpdateListeners = useCallback(() => {
+    window.electronAPI.updater.onUpdateAvailable((info: UpdateInfo) => {
       setUpdateInfo(info)
       setCheckingUpdate(false)
     })
@@ -185,7 +230,7 @@ const SettingsPage: React.FC = () => {
       setCheckingUpdate(false)
     })
 
-    window.electronAPI.updater.onDownloadProgress((progress: any) => {
+    window.electronAPI.updater.onDownloadProgress((progress: DownloadProgress) => {
       setDownloadProgress(Math.round(progress.percent))
     })
 
@@ -199,7 +244,23 @@ const SettingsPage: React.FC = () => {
       setCheckingUpdate(false)
       setDownloading(false)
     })
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchSubjects()
+    fetchTags()
+    loadAISettings()
+    loadAppVersion()
+    setupUpdateListeners()
+
+    return () => {
+      window.electronAPI.updater.removeAllListeners('update-available')
+      window.electronAPI.updater.removeAllListeners('update-not-available')
+      window.electronAPI.updater.removeAllListeners('download-progress')
+      window.electronAPI.updater.removeAllListeners('update-downloaded')
+      window.electronAPI.updater.removeAllListeners('update-error')
+    }
+  }, [fetchSubjects, fetchTags, loadAISettings, loadAppVersion, setupUpdateListeners])
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true)
@@ -216,6 +277,12 @@ const SettingsPage: React.FC = () => {
       setCheckingUpdate(false)
     }
   }
+
+  useEffect(() => {
+    if (selectedSubjectId) {
+      fetchChapters(selectedSubjectId)
+    }
+  }, [fetchChapters, selectedSubjectId])
 
   const handleDownloadUpdate = async () => {
     setDownloading(true)
@@ -239,24 +306,7 @@ const SettingsPage: React.FC = () => {
   }
 
   // ==================== AI设置相关 ====================
-  const loadAISettings = async () => {
-    try {
-      const settings = await window.electronAPI.db.aiSettings.get()
-      setAiSettings(settings)
-      if (settings) {
-        aiForm.setFieldsValue({
-          provider: settings.provider || 'openai',
-          api_key: settings.api_key || '',
-          api_base_url: settings.api_base_url || '',
-          model: settings.model || 'gpt-3.5-turbo',
-        })
-      }
-    } catch (error) {
-      console.error('Failed to load AI settings:', error)
-    }
-  }
-
-  const handleAISubmit = async (values: any) => {
+  const handleAISubmit = async (values: AISettings) => {
     setAiSaving(true)
     try {
       await window.electronAPI.db.aiSettings.save(values)
@@ -294,11 +344,11 @@ const SettingsPage: React.FC = () => {
     }
   }
 
-  const handleSubjectSubmit = async (values: any) => {
+  const handleSubjectSubmit = async (values: SubjectFormValues) => {
     try {
       const data = {
         ...values,
-        color: typeof values.color === 'string' ? values.color : values.color?.toHexString?.() || '#1890ff',
+        color: getHexColor(values.color, '#1890ff'),
       }
       if (editingSubject) {
         await updateSubject(editingSubject.id, data)
@@ -341,7 +391,7 @@ const SettingsPage: React.FC = () => {
     }
   }
 
-  const handleChapterSubmit = async (values: any) => {
+  const handleChapterSubmit = async (values: CreateChapterInput) => {
     try {
       if (editingChapter) {
         await updateChapter(editingChapter.id, values)
@@ -385,11 +435,11 @@ const SettingsPage: React.FC = () => {
     }
   }
 
-  const handleTagSubmit = async (values: any) => {
+  const handleTagSubmit = async (values: TagFormValues) => {
     try {
       const data = {
         ...values,
-        color: typeof values.color === 'string' ? values.color : values.color?.toHexString?.() || '#52c41a',
+        color: getHexColor(values.color, '#52c41a'),
       }
       if (editingTag) {
         await updateTag(editingTag.id, data)

@@ -15,6 +15,7 @@ import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuestionStore, useSubjectStore } from '../../stores'
 import AudioRecorder from '../../components/AudioRecorder'
+import type { CreateQuestionInput, Tag } from '../../types'
 
 const { TextArea } = Input
 const { Option } = Select
@@ -42,7 +43,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ mode }) => {
       fetchQuestionById(Number(id))
       setSavedQuestionId(Number(id))
     }
-  }, [mode, id])
+  }, [fetchQuestionById, fetchSubjects, fetchTags, id, mode])
 
   useEffect(() => {
     if (currentQuestion && mode === 'edit') {
@@ -55,22 +56,22 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ mode }) => {
         subject_id: currentQuestion.subject_id,
         chapter_id: currentQuestion.chapter_id,
         difficulty: currentQuestion.difficulty,
-        tags: currentQuestion.tagList?.map((t: any) => t.id) || [],
+        tags: currentQuestion.tagList?.map((t: Tag) => t.id) || [],
       })
       if (currentQuestion.subject_id) {
         setSelectedSubjectId(currentQuestion.subject_id)
         fetchChapters(currentQuestion.subject_id)
       }
     }
-  }, [currentQuestion, mode, form])
+  }, [currentQuestion, fetchChapters, form, mode])
 
   useEffect(() => {
     if (selectedSubjectId) {
       fetchChapters(selectedSubjectId)
     }
-  }, [selectedSubjectId])
+  }, [fetchChapters, selectedSubjectId])
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: CreateQuestionInput) => {
     setLoading(true)
     try {
       if (mode === 'add') {

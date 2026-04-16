@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, List, Popconfirm, message, Tag } from 'antd'
 import {
   AudioOutlined,
@@ -37,13 +37,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ questionId, type, onRecor
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // 加载已有的录音
-  useEffect(() => {
-    if (questionId) {
-      loadAudioRecords()
-    }
-  }, [questionId])
-
-  const loadAudioRecords = async () => {
+  const loadAudioRecords = useCallback(async () => {
     if (!questionId) return
     try {
       const records = await window.electronAPI.db.audio.getByQuestion(questionId)
@@ -51,7 +45,13 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ questionId, type, onRecor
     } catch (error) {
       console.error('Failed to load audio records:', error)
     }
-  }
+  }, [questionId, type])
+
+  useEffect(() => {
+    if (questionId) {
+      loadAudioRecords()
+    }
+  }, [loadAudioRecords, questionId])
 
   const startRecording = async () => {
     try {

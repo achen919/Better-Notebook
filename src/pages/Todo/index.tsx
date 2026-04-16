@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   Card,
   Input,
@@ -27,6 +27,7 @@ import {
   BarChartOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import type { Subject } from '../../types'
 
 const { TextArea } = Input
 const { Text, Paragraph } = Typography
@@ -79,7 +80,7 @@ const TodoPage: React.FC = () => {
   const [learningTimeRecords, setLearningTimeRecords] = useState<LearningTimeRecord[]>([])
   const [learningTimeModalVisible, setLearningTimeModalVisible] = useState(false)
   const [newLearningTime, setNewLearningTime] = useState({ duration: 60, subject_id: undefined as number | undefined, note: '' })
-  const [subjects, setSubjects] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
 
   // 统计相关
   const [activeTab, setActiveTab] = useState('today')
@@ -87,27 +88,16 @@ const TodoPage: React.FC = () => {
   const [learningTimeStats, setLearningTimeStats] = useState<{ date: string; total_duration: number }[]>([])
   const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'year'>('week')
 
-  useEffect(() => {
-    loadTodos()
-    loadSummary()
-    loadLearningTime()
-    loadSubjects()
-  }, [selectedDate])
-
-  useEffect(() => {
-    loadStats()
-  }, [statsPeriod])
-
-  const loadTodos = async () => {
+  const loadTodos = useCallback(async () => {
     try {
       const result = await window.electronAPI.db.todo.getByDate(selectedDate)
       setTodos(result)
     } catch (error) {
       console.error('Failed to load todos:', error)
     }
-  }
+  }, [selectedDate])
 
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     try {
       const result = await window.electronAPI.db.summary.getByDate(selectedDate)
       setSummary(result)
@@ -116,27 +106,27 @@ const TodoPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load summary:', error)
     }
-  }
+  }, [selectedDate])
 
-  const loadLearningTime = async () => {
+  const loadLearningTime = useCallback(async () => {
     try {
       const result = await window.electronAPI.db.learningTime.getByDate(selectedDate)
       setLearningTimeRecords(result)
     } catch (error) {
       console.error('Failed to load learning time:', error)
     }
-  }
+  }, [selectedDate])
 
-  const loadSubjects = async () => {
+  const loadSubjects = useCallback(async () => {
     try {
       const result = await window.electronAPI.db.subjects.getAll()
       setSubjects(result)
     } catch (error) {
       console.error('Failed to load subjects:', error)
     }
-  }
+  }, [])
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const days = statsPeriod === 'week' ? 7 : statsPeriod === 'month' ? 30 : 365
       const [todoResult, timeResult] = await Promise.all([
@@ -148,7 +138,18 @@ const TodoPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load stats:', error)
     }
-  }
+  }, [statsPeriod])
+
+  useEffect(() => {
+    loadTodos()
+    loadSummary()
+    loadLearningTime()
+    loadSubjects()
+  }, [loadLearningTime, loadSubjects, loadSummary, loadTodos])
+
+  useEffect(() => {
+    loadStats()
+  }, [loadStats])
 
   const addTodo = async () => {
     if (!newTodo.trim()) return

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Card,
   Button,
@@ -31,6 +31,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuestionStore, useReviewStore } from '../../stores'
 import { getStageDescription, getReviewProgress, FEEDBACK_LEVELS } from '../../utils/ebbinghaus'
 import dayjs from 'dayjs'
+import type { Tag as QuestionTag } from '../../types'
 
 const { Title, Paragraph } = Typography
 
@@ -52,22 +53,22 @@ const QuestionDetailPage: React.FC = () => {
   const [playingId, setPlayingId] = useState<number | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  useEffect(() => {
-    if (id) {
-      fetchQuestionById(Number(id))
-      fetchReviewRecords(Number(id))
-      loadAudioRecords(Number(id))
-    }
-  }, [id])
-
-  const loadAudioRecords = async (questionId: number) => {
+  const loadAudioRecords = useCallback(async (questionId: number) => {
     try {
       const records = await window.electronAPI.db.audio.getByQuestion(questionId)
       setAudioRecords(records)
     } catch (error) {
       console.error('Failed to load audio records:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (id) {
+      fetchQuestionById(Number(id))
+      fetchReviewRecords(Number(id))
+      loadAudioRecords(Number(id))
+    }
+  }, [fetchQuestionById, fetchReviewRecords, id, loadAudioRecords])
 
   const handleDelete = async () => {
     if (!id) return
@@ -301,7 +302,7 @@ const QuestionDetailPage: React.FC = () => {
               <Descriptions.Item label="标签">
                 {currentQuestion.tagList && currentQuestion.tagList.length > 0 ? (
                   <Space size={[0, 4]} wrap>
-                    {currentQuestion.tagList.map((tag: any) => (
+                    {currentQuestion.tagList.map((tag: QuestionTag) => (
                       <Tag key={tag.id} color={tag.color}>{tag.name}</Tag>
                     ))}
                   </Space>

@@ -16,7 +16,7 @@ const StatisticsPage: React.FC = () => {
 
   useEffect(() => {
     refreshAll()
-  }, [])
+  }, [refreshAll])
 
   // 科目分布饼图配置
   const subjectPieOption = {

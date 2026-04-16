@@ -48,13 +48,13 @@ const QuestionListPage: React.FC = () => {
   useEffect(() => {
     fetchQuestions()
     fetchSubjects()
-  }, [])
+  }, [fetchQuestions, fetchSubjects])
 
   useEffect(() => {
     if (selectedSubject) {
       fetchChapters(selectedSubject)
     }
-  }, [selectedSubject])
+  }, [fetchChapters, selectedSubject])
 
   const filteredQuestions = questions.filter((q) => {
     if (selectedSubject && q.subject_id !== selectedSubject) return false
@@ -169,7 +169,7 @@ const QuestionListPage: React.FC = () => {
       key: 'action',
       width: 140,
       align: 'center' as const,
-      render: (_: any, record: Question) => (
+      render: (_value: unknown, record: Question) => (
         <Space size={0}>
           <Tooltip title="查看">
             <Button
