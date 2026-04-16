@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Card,
   Input,
@@ -54,6 +55,7 @@ interface WeakPoint {
 }
 
 const ChatPage: React.FC = () => {
+  const navigate = useNavigate()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -418,7 +420,7 @@ ${weakPoints.map(wp => `- [${wp.subject_name || '未分类'}] ${wp.topic}: ${wp.
             <Button icon={<ClearOutlined />} onClick={clearHistory}>
               清空记录
             </Button>
-            <Button icon={<SettingOutlined />} onClick={() => window.location.href = '/settings'}>
+            <Button icon={<SettingOutlined />} onClick={() => navigate('/settings')}>
               API设置
             </Button>
           </Space>
