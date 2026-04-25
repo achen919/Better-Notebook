@@ -162,6 +162,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       update: (id: number, data: any) => ipcRenderer.invoke('db:weakPoints:update', id, data),
       delete: (id: number) => ipcRenderer.invoke('db:weakPoints:delete', id),
     },
+
+    // 番茄钟相关
+    pomodoro: {
+      getSettings: () => ipcRenderer.invoke('pomodoro:getSettings'),
+      saveSettings: (data: any) => ipcRenderer.invoke('pomodoro:saveSettings', data),
+      getTodayStats: () => ipcRenderer.invoke('pomodoro:getTodayStats'),
+      getIncompleteSession: () => ipcRenderer.invoke('pomodoro:getIncompleteSession'),
+      createSession: (data: any) => ipcRenderer.invoke('pomodoro:createSession', data),
+      updateSession: (id: number, data: any) => ipcRenderer.invoke('pomodoro:updateSession', id, data),
+    },
   },
 
   // AI API 调用
@@ -316,6 +326,14 @@ export interface ElectronAPI {
       add: (data: any) => Promise<number>
       update: (id: number, data: any) => Promise<void>
       delete: (id: number) => Promise<void>
+    }
+    pomodoro: {
+      getSettings: () => Promise<any>
+      saveSettings: (data: any) => Promise<void>
+      getTodayStats: () => Promise<any>
+      getIncompleteSession: () => Promise<any>
+      createSession: (data: any) => Promise<number>
+      updateSession: (id: number, data: any) => Promise<void>
     }
   }
   updater: {
