@@ -142,3 +142,48 @@ export interface ReviewFeedback {
   icon: string
   description: string
 }
+
+// ==================== 番茄钟类型 ====================
+export interface PomodoroSettings {
+  id: number
+  focus_duration: number
+  break_duration: number
+  auto_start_break: number
+  auto_start_focus: number
+  daily_goal: number
+  default_subject_id: number | null
+  notification_sound: number
+  max_pause_duration: number
+}
+
+export interface PomodoroSession {
+  id: number
+  date: string
+  start_time: string
+  end_time: string | null
+  duration: number
+  planned_duration: number
+  status: 'completed' | 'abandoned'
+  subject_id: number | null
+  goal: string
+  pause_count: number
+  total_pause_time: number
+  created_at: string
+  subject_name?: string
+  subject_color?: string
+}
+
+export interface PomodoroState {
+  status: 'idle' | 'running' | 'paused'
+  remaining: number
+  totalDuration: number
+  subjectId: number | null
+  subjectName: string | null
+  goal: string
+  sessionId: number | null
+}
+
+export interface PomodoroTodayStats {
+  count: number
+  total_duration: number
+}
