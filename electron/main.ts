@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase } from './database/init'
-import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService } from './database/services'
+import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService, pomodoroService } from './database/services'
 import { autoUpdater } from 'electron-updater'
 import https from 'https'
 import http from 'http'
@@ -294,6 +294,14 @@ ipcMain.handle('db:weakPoints:getBySubject', async (_event, subjectId: number) =
 ipcMain.handle('db:weakPoints:add', async (_event, data: any) => weakPointService.add(data))
 ipcMain.handle('db:weakPoints:update', async (_event, id: number, data: any) => weakPointService.update(id, data))
 ipcMain.handle('db:weakPoints:delete', async (_event, id: number) => weakPointService.delete(id))
+
+// ==================== 番茄钟相关 ====================
+ipcMain.handle('pomodoro:getSettings', async () => pomodoroService.getSettings())
+ipcMain.handle('pomodoro:saveSettings', async (_event, data: any) => pomodoroService.saveSettings(data))
+ipcMain.handle('pomodoro:getTodayStats', async () => pomodoroService.getTodayStats())
+ipcMain.handle('pomodoro:getIncompleteSession', async () => pomodoroService.getIncompleteSession())
+ipcMain.handle('pomodoro:createSession', async (_event, data: any) => pomodoroService.createSession(data))
+ipcMain.handle('pomodoro:updateSession', async (_event, id: number, data: any) => pomodoroService.updateSession(id, data))
 
 // ==================== AI API 调用 ====================
 ipcMain.handle('ai:call', async (_event, options: { url: string; apiKey: string; body: any }) => {
