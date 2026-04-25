@@ -16,6 +16,24 @@ export interface MenuBarState {
   sessionId: number | null
 }
 
+export interface PomodoroSettings {
+  id: number
+  focus_duration: number
+  break_duration: number
+  auto_start_break: number
+  auto_start_focus: number
+  daily_goal: number
+  default_subject_id: number | null
+  notification_sound: number
+  max_pause_duration: number
+}
+
+export interface Subject {
+  id: number
+  name: string
+  question_count?: number
+}
+
 export class MenuBarManager {
   private tray: Tray | null = null
   private timer: PomodoroTimer
@@ -29,6 +47,8 @@ export class MenuBarManager {
     sessionId: null,
   }
   private mainWindow: BrowserWindow | null = null
+  private settings: PomodoroSettings | null = null
+  private subjects: Subject[] = []
 
   constructor() {
     this.timer = new PomodoroTimer({
@@ -45,6 +65,23 @@ export class MenuBarManager {
     this.mainWindow = mainWindow
     this.createTray()
     this.updateMenu()
+  }
+
+  /**
+   * Set pomodoro settings
+   */
+  setSettings(settings: PomodoroSettings | null): void {
+    this.settings = settings
+    if (settings?.max_pause_duration) {
+      this.timer.setMaxPauseDuration(settings.max_pause_duration)
+    }
+  }
+
+  /**
+   * Set subjects list
+   */
+  setSubjects(subjects: Subject[]): void {
+    this.subjects = subjects
   }
 
   /**

@@ -56,6 +56,14 @@ app.whenReady().then(async () => {
     console.error('Failed to initialize database:', error)
   }
 
+  // Load pomodoro settings
+  const pomodoroSettings = pomodoroService.getSettings()
+  menuBarManager.setSettings(pomodoroSettings)
+
+  // Load subjects for menu
+  const subjects = subjectService.getAll()
+  menuBarManager.setSubjects(subjects)
+
   createWindow()
 
   // 自动更新逻辑
