@@ -1,5 +1,5 @@
-import React from 'react'
-import { Layout, Menu } from 'antd'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Layout, Menu, message } from 'antd'
 import {
   HomeOutlined,
   BookOutlined,
@@ -11,8 +11,19 @@ import {
   RobotOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
+import PomodoroCompleteModal from '../PomodoroCompleteModal'
+import { useSubjectStore, usePomodoroStore } from '@/stores'
+import type { Subject } from '@/types'
 
 const { Sider, Content } = Layout
+
+interface CompletedPomodoroData {
+  sessionId: number | null
+  duration: number // in seconds
+  subjectId: number | null
+  subjectName: string | null
+  goal: string
+}
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -21,6 +32,82 @@ interface MainLayoutProps {
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Pomodoro completion modal state
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [completedData, setCompletedData] = useState<CompletedPomodoroData | null>(null)
+
+  // Get subjects from store
+  const { subjects, fetchSubjects } = useSubjectStore()
+  const { fetchTodayStats } = usePomodoroStore()
+
+  // Fetch subjects on mount
+  useEffect(() => {
+    fetchSubjects()
+  }, [fetchSubjects])
+
+  // Setup pomodoro event listeners
+  useEffect(() => {
+    // Listen for pomodoro completion events from main process
+    // Note: preload already extracts data from IPC event, so callback receives only data
+    const handleCompleted = (data: CompletedPomodoroData) => {
+      setCompletedData(data)
+      setShowCompleteModal(true)
+    }
+
+    window.electronAPI.pomodoroControl.onCompleted(handleCompleted)
+
+    return () => {
+      window.electronAPI.pomodoroControl.removeAllListeners('pomodoro:completed')
+    }
+  }, [])
+
+  // Handle saving completed pomodoro session
+  const handleSaveComplete = useCallback(async (subjectId: number | null, goal: string) => {
+    if (!completedData) return
+
+    try {
+      // Update the session with the final subject and goal
+      if (completedData.sessionId) {
+        await window.electronAPI.db.pomodoro.updateSession(completedData.sessionId, {
+          subject_id: subjectId,
+          goal: goal,
+          status: 'completed',
+        })
+      }
+
+      // Refresh today's stats
+      await fetchTodayStats()
+
+      // Close modal and reset state
+      setShowCompleteModal(false)
+      setCompletedData(null)
+    } catch (error) {
+      console.error('Failed to save pomodoro session:', error)
+      message.error('保存番茄钟记录失败')
+    }
+  }, [completedData, fetchTodayStats])
+
+  // Handle discarding completed pomodoro session
+  const handleDiscardComplete = useCallback(async () => {
+    if (!completedData) return
+
+    try {
+      // Mark session as abandoned if it exists
+      if (completedData.sessionId) {
+        await window.electronAPI.db.pomodoro.updateSession(completedData.sessionId, {
+          status: 'abandoned',
+        })
+      }
+
+      // Close modal and reset state
+      setShowCompleteModal(false)
+      setCompletedData(null)
+    } catch (error) {
+      console.error('Failed to discard pomodoro session:', error)
+      message.error('放弃番茄钟记录失败')
+    }
+  }, [completedData])
 
   const menuItems = [
     {
@@ -105,6 +192,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           {children}
         </Content>
       </Layout>
+
+      {/* Pomodoro completion modal */}
+      <PomodoroCompleteModal
+        visible={showCompleteModal}
+        duration={completedData ? Math.round(completedData.duration / 60) : 0}
+        defaultSubjectId={completedData?.subjectId ?? null}
+        defaultGoal={completedData?.goal ?? ''}
+        subjects={subjects as Subject[]}
+        onSave={handleSaveComplete}
+        onDiscard={handleDiscardComplete}
+      />
     </Layout>
   )
 }

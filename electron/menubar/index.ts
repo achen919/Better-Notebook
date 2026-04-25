@@ -103,11 +103,11 @@ export class MenuBarManager {
       icon = nativeImage.createFromPath(iconPath)
       if (icon.isEmpty()) {
         // Fallback: create a simple icon from text
-        icon = this.createTextIcon('\u{1F345}') // Tomato emoji
+        icon = this.createTextIcon('\u{23F1}') // Timer emoji ⏱
       }
     } catch {
       // Fallback to text-based icon
-      icon = this.createTextIcon('\u{1F345}')
+      icon = this.createTextIcon('\u{23F1}') // Timer emoji ⏱
     }
 
     this.tray = new Tray(icon)
@@ -399,16 +399,16 @@ export class MenuBarManager {
   private updateTrayTitle(): void {
     if (!this.tray) return
 
-    let title = '\u{1F345}' // Tomato emoji
+    let title = '\u{23F1} ' // Timer emoji ⏱
 
     if (this.state.status === 'running') {
       const minutes = Math.floor(this.state.remaining / 60)
       const seconds = this.state.remaining % 60
-      title += ` ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      title += `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
     } else if (this.state.status === 'paused') {
       const minutes = Math.floor(this.state.remaining / 60)
       const seconds = this.state.remaining % 60
-      title += ` \u{23F8} ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      title += `\u{23F8} ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
     }
 
     this.tray.setTitle(title)

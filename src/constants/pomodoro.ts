@@ -1,0 +1,13 @@
+export const POMODORO_DEFAULTS = {
+  FOCUS_DURATION: 25,
+  BREAK_DURATION: 5,
+  DAILY_GOAL: 8,
+  MAX_PAUSE_DURATION: 5,
+} as const
+
+export const POMODORO_LIMITS = {
+  FOCUS_DURATION: { MIN: 1, MAX: 120 },
+  BREAK_DURATION: { MIN: 1, MAX: 30 },
+  DAILY_GOAL: { MIN: 1, MAX: 20 },
+  MAX_PAUSE_DURATION: { MIN: 1, MAX: 30 },
+} as const

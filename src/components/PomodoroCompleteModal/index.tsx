@@ -79,7 +79,7 @@ const PomodoroCompleteModal: React.FC<PomodoroCompleteModalProps> = ({
     <Modal
       title={
         <span style={{ fontSize: 18 }}>
-          <span style={{ marginRight: 8 }}>🍅</span>
+          <span style={{ marginRight: 8 }}>⏱</span>
           专注完成！
         </span>
       }

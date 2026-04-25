@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { PomodoroSettings, PomodoroTodayStats, PomodoroState } from '../types'
+import { POMODORO_DEFAULTS } from '../constants/pomodoro'
 
 interface PomodoroStoreState {
   // Timer state
@@ -33,6 +34,7 @@ interface PomodoroStoreActions {
 
   // Settings actions
   saveSettings: (settings: Partial<PomodoroSettings>) => Promise<void>
+  setSettingsSaving: (loading: boolean) => void
 
   // Timer control actions
   start: (durationMinutes?: number, subjectId?: number, subjectName?: string, goal?: string) => Promise<void>
@@ -124,11 +126,14 @@ export const usePomodoroStore = create<PomodoroStore>((set, get) => ({
     }
   },
 
+  // Set settings loading state
+  setSettingsSaving: (loading) => set({ settingsLoading: loading }),
+
   // Start pomodoro
   start: async (durationMinutes, subjectId, subjectName, goal) => {
     try {
       const settings = get().settings
-      const duration = durationMinutes || settings?.focus_duration || 25
+      const duration = durationMinutes || settings?.focus_duration || POMODORO_DEFAULTS.FOCUS_DURATION
 
       await window.electronAPI.pomodoroControl.start(
         duration,
