@@ -27,6 +27,13 @@ export class PomodoroTimer {
   }
 
   start(durationMinutes: number) {
+    // Clean up any existing intervals first
+    this.stopTicking()
+    if (this.pauseCheckInterval) {
+      clearInterval(this.pauseCheckInterval)
+      this.pauseCheckInterval = null
+    }
+
     this.duration = durationMinutes * 60
     this.remaining = this.duration
     this.state = 'running'
@@ -108,6 +115,7 @@ export class PomodoroTimer {
       if (this.remaining <= 0) {
         this.remaining = 0
         this.stopTicking()
+        this.state = 'idle'
         this.callbacks.onComplete()
       }
     }, 1000)
