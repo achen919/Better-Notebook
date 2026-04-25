@@ -51,6 +51,12 @@ export class MenuBarManager {
    * Create the tray icon and menu
    */
   private createTray() {
+    // Destroy existing tray if it exists
+    if (this.tray) {
+      this.tray.destroy()
+      this.tray = null
+    }
+
     // Create tray icon - use a simple tomato emoji as text for now
     // In production, you may want to use a proper icon file
     const iconPath = this.getTrayIconPath()
@@ -267,16 +273,20 @@ export class MenuBarManager {
    * Handle timer complete
    */
   private handleComplete(): void {
+    // Get actual duration from timer
+    const result = this.timer.stop()
+
     this.state.status = 'idle'
     this.state.remaining = 0
 
-    // Update session in database
+    // Update session in database with actual duration and pause time
     if (this.state.sessionId) {
       const now = new Date()
       pomodoroService.updateSession(this.state.sessionId, {
         end_time: now.toISOString(),
-        duration: this.state.totalDuration,
+        duration: result.duration,
         status: 'completed',
+        total_pause_time: result.totalPauseTime,
       })
     }
 
@@ -289,7 +299,7 @@ export class MenuBarManager {
     // Notify renderer to show completion modal
     this.mainWindow?.webContents.send('pomodoro:completed', {
       sessionId: this.state.sessionId,
-      duration: this.state.totalDuration,
+      duration: result.duration,
       subjectId: this.state.subjectId,
       subjectName: this.state.subjectName,
       goal: this.state.goal,
