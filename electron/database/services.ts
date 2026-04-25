@@ -1141,44 +1141,66 @@ export const pomodoroService = {
     notification_sound?: number
     max_pause_duration?: number
   }) {
-    const fields: string[] = []
-    const values: any[] = []
+    const existing = get('SELECT id FROM pomodoro_settings WHERE id = 1')
 
-    if (data.focus_duration !== undefined) {
-      fields.push('focus_duration = ?')
-      values.push(data.focus_duration)
-    }
-    if (data.break_duration !== undefined) {
-      fields.push('break_duration = ?')
-      values.push(data.break_duration)
-    }
-    if (data.auto_start_break !== undefined) {
-      fields.push('auto_start_break = ?')
-      values.push(data.auto_start_break)
-    }
-    if (data.auto_start_focus !== undefined) {
-      fields.push('auto_start_focus = ?')
-      values.push(data.auto_start_focus)
-    }
-    if (data.daily_goal !== undefined) {
-      fields.push('daily_goal = ?')
-      values.push(data.daily_goal)
-    }
-    if (data.default_subject_id !== undefined) {
-      fields.push('default_subject_id = ?')
-      values.push(data.default_subject_id)
-    }
-    if (data.notification_sound !== undefined) {
-      fields.push('notification_sound = ?')
-      values.push(data.notification_sound)
-    }
-    if (data.max_pause_duration !== undefined) {
-      fields.push('max_pause_duration = ?')
-      values.push(data.max_pause_duration)
-    }
+    if (existing) {
+      // Update existing settings
+      const fields: string[] = []
+      const values: any[] = []
 
-    if (fields.length > 0) {
-      run(`UPDATE pomodoro_settings SET ${fields.join(', ')} WHERE id = 1`, values)
+      if (data.focus_duration !== undefined) {
+        fields.push('focus_duration = ?')
+        values.push(data.focus_duration)
+      }
+      if (data.break_duration !== undefined) {
+        fields.push('break_duration = ?')
+        values.push(data.break_duration)
+      }
+      if (data.auto_start_break !== undefined) {
+        fields.push('auto_start_break = ?')
+        values.push(data.auto_start_break)
+      }
+      if (data.auto_start_focus !== undefined) {
+        fields.push('auto_start_focus = ?')
+        values.push(data.auto_start_focus)
+      }
+      if (data.daily_goal !== undefined) {
+        fields.push('daily_goal = ?')
+        values.push(data.daily_goal)
+      }
+      if (data.default_subject_id !== undefined) {
+        fields.push('default_subject_id = ?')
+        values.push(data.default_subject_id)
+      }
+      if (data.notification_sound !== undefined) {
+        fields.push('notification_sound = ?')
+        values.push(data.notification_sound)
+      }
+      if (data.max_pause_duration !== undefined) {
+        fields.push('max_pause_duration = ?')
+        values.push(data.max_pause_duration)
+      }
+
+      if (fields.length > 0) {
+        run(`UPDATE pomodoro_settings SET ${fields.join(', ')} WHERE id = 1`, values)
+      }
+      return existing.id
+    } else {
+      // Insert new settings
+      const result = run(`
+        INSERT INTO pomodoro_settings (id, focus_duration, break_duration, auto_start_break, auto_start_focus, daily_goal, default_subject_id, notification_sound, max_pause_duration)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        data.focus_duration ?? 25,
+        data.break_duration ?? 5,
+        data.auto_start_break ?? 0,
+        data.auto_start_focus ?? 0,
+        data.daily_goal ?? 8,
+        data.default_subject_id ?? null,
+        data.notification_sound ?? 1,
+        data.max_pause_duration ?? 300,
+      ])
+      return result.lastInsertRowid
     }
   },
 
@@ -1246,15 +1268,13 @@ export const pomodoroService = {
 
   // 获取今日统计
   getTodayStats() {
-    const today = new Date().toISOString().split('T')[0]
-    const stats = get(`
+    return get(`
       SELECT
         COUNT(*) as count,
         COALESCE(SUM(duration), 0) as total_duration
       FROM pomodoro_sessions
-      WHERE date = ? AND status = 'completed'
-    `, [today])
-    return stats
+      WHERE date = date('now', 'localtime') AND status = 'completed'
+    `)
   },
 
   // 获取未完成的会话
