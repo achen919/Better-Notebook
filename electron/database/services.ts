@@ -648,11 +648,11 @@ export const learningTimeService = {
   },
 
   // 创建学习时间记录
-  create(data: { date: string; duration: number; subject_id?: number; note?: string }) {
+  create(data: { date: string; duration: number; subject_id?: number; note?: string; source?: string; pomodoro_id?: number }) {
     const result = run(`
-      INSERT INTO learning_time (date, duration, subject_id, note)
-      VALUES (?, ?, ?, ?)
-    `, [data.date, data.duration, data.subject_id || null, data.note || ''])
+      INSERT INTO learning_time (date, duration, subject_id, note, source, pomodoro_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [data.date, data.duration, data.subject_id || null, data.note || '', data.source || 'manual', data.pomodoro_id || null])
     return result.lastInsertRowid
   },
 
@@ -1119,5 +1119,151 @@ export const weakPointService = {
   // 删除弱势点
   delete(id: number) {
     run('DELETE FROM weak_points WHERE id = ?', [id])
+  },
+}
+
+// ==================== 番茄钟相关操作 ====================
+
+export const pomodoroService = {
+  // 获取设置
+  getSettings() {
+    return get('SELECT * FROM pomodoro_settings WHERE id = 1')
+  },
+
+  // 保存设置
+  saveSettings(data: {
+    focus_duration?: number
+    break_duration?: number
+    auto_start_break?: number
+    auto_start_focus?: number
+    daily_goal?: number
+    default_subject_id?: number
+    notification_sound?: number
+    max_pause_duration?: number
+  }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.focus_duration !== undefined) {
+      fields.push('focus_duration = ?')
+      values.push(data.focus_duration)
+    }
+    if (data.break_duration !== undefined) {
+      fields.push('break_duration = ?')
+      values.push(data.break_duration)
+    }
+    if (data.auto_start_break !== undefined) {
+      fields.push('auto_start_break = ?')
+      values.push(data.auto_start_break)
+    }
+    if (data.auto_start_focus !== undefined) {
+      fields.push('auto_start_focus = ?')
+      values.push(data.auto_start_focus)
+    }
+    if (data.daily_goal !== undefined) {
+      fields.push('daily_goal = ?')
+      values.push(data.daily_goal)
+    }
+    if (data.default_subject_id !== undefined) {
+      fields.push('default_subject_id = ?')
+      values.push(data.default_subject_id)
+    }
+    if (data.notification_sound !== undefined) {
+      fields.push('notification_sound = ?')
+      values.push(data.notification_sound)
+    }
+    if (data.max_pause_duration !== undefined) {
+      fields.push('max_pause_duration = ?')
+      values.push(data.max_pause_duration)
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE pomodoro_settings SET ${fields.join(', ')} WHERE id = 1`, values)
+    }
+  },
+
+  // 创建番茄钟会话
+  createSession(data: {
+    date: string
+    start_time: string
+    planned_duration: number
+    subject_id?: number
+    goal?: string
+  }) {
+    const result = run(`
+      INSERT INTO pomodoro_sessions (date, start_time, planned_duration, subject_id, goal)
+      VALUES (?, ?, ?, ?, ?)
+    `, [data.date, data.start_time, data.planned_duration, data.subject_id || null, data.goal || ''])
+    return result.lastInsertRowid
+  },
+
+  // 更新番茄钟会话
+  updateSession(id: number, data: {
+    end_time?: string
+    duration?: number
+    status?: string
+    pause_count?: number
+    total_pause_time?: number
+    subject_id?: number
+    goal?: string
+  }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.end_time !== undefined) {
+      fields.push('end_time = ?')
+      values.push(data.end_time)
+    }
+    if (data.duration !== undefined) {
+      fields.push('duration = ?')
+      values.push(data.duration)
+    }
+    if (data.status !== undefined) {
+      fields.push('status = ?')
+      values.push(data.status)
+    }
+    if (data.pause_count !== undefined) {
+      fields.push('pause_count = ?')
+      values.push(data.pause_count)
+    }
+    if (data.total_pause_time !== undefined) {
+      fields.push('total_pause_time = ?')
+      values.push(data.total_pause_time)
+    }
+    if (data.subject_id !== undefined) {
+      fields.push('subject_id = ?')
+      values.push(data.subject_id)
+    }
+    if (data.goal !== undefined) {
+      fields.push('goal = ?')
+      values.push(data.goal)
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE pomodoro_sessions SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+    }
+  },
+
+  // 获取今日统计
+  getTodayStats() {
+    const today = new Date().toISOString().split('T')[0]
+    const stats = get(`
+      SELECT
+        COUNT(*) as count,
+        COALESCE(SUM(duration), 0) as total_duration
+      FROM pomodoro_sessions
+      WHERE date = ? AND status = 'completed'
+    `, [today])
+    return stats
+  },
+
+  // 获取未完成的会话
+  getIncompleteSession() {
+    return get(`
+      SELECT * FROM pomodoro_sessions
+      WHERE end_time IS NULL
+      ORDER BY start_time DESC
+      LIMIT 1
+    `)
   },
 }
