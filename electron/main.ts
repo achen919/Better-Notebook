@@ -6,6 +6,7 @@ import { questionService, reviewService, subjectService, chapterService, tagServ
 import { autoUpdater } from 'electron-updater'
 import https from 'https'
 import http from 'http'
+import { menuBarManager } from './menubar'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -33,6 +34,8 @@ function createWindow() {
   // 窗口准备好后显示
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
+    // Initialize menu bar manager
+    menuBarManager.init(mainWindow!)
   })
 
   if (isDev) {
@@ -153,6 +156,11 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// 清理资源
+app.on('before-quit', () => {
+  menuBarManager.destroy()
 })
 
 // IPC 处理：显示系统通知
@@ -302,6 +310,29 @@ ipcMain.handle('pomodoro:getTodayStats', async () => pomodoroService.getTodaySta
 ipcMain.handle('pomodoro:getIncompleteSession', async () => pomodoroService.getIncompleteSession())
 ipcMain.handle('pomodoro:createSession', async (_event, data: any) => pomodoroService.createSession(data))
 ipcMain.handle('pomodoro:updateSession', async (_event, id: number, data: any) => pomodoroService.updateSession(id, data))
+
+// ==================== 番茄钟控制相关 (MenuBar) ====================
+ipcMain.handle('pomodoro:start', async (_event, durationMinutes: number, subjectId?: number, goal?: string) => {
+  await menuBarManager.start(durationMinutes, subjectId, goal)
+})
+ipcMain.handle('pomodoro:pause', async () => {
+  menuBarManager.pause()
+})
+ipcMain.handle('pomodoro:resume', async () => {
+  menuBarManager.resume()
+})
+ipcMain.handle('pomodoro:stop', async () => {
+  return menuBarManager.stop()
+})
+ipcMain.handle('pomodoro:getState', async () => {
+  return menuBarManager.getState()
+})
+ipcMain.handle('pomodoro:updateGoal', async (_event, goal: string) => {
+  menuBarManager.updateGoal(goal)
+})
+ipcMain.handle('pomodoro:updateSubject', async (_event, subjectId: number) => {
+  await menuBarManager.updateSubject(subjectId)
+})
 
 // ==================== AI API 调用 ====================
 ipcMain.handle('ai:call', async (_event, options: { url: string; apiKey: string; body: any }) => {
