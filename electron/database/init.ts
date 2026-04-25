@@ -146,6 +146,16 @@ function runMigrations() {
     database.run('ALTER TABLE ai_settings ADD COLUMN system_prompt TEXT')
   }
 
+  // learning_time 表 - 添加 source 和 pomodoro_id 列
+  if (!columnExists('learning_time', 'source')) {
+    console.log('Migrating: Adding source column to learning_time table')
+    database.run('ALTER TABLE learning_time ADD COLUMN source TEXT DEFAULT \'manual\'')
+  }
+  if (!columnExists('learning_time', 'pomodoro_id')) {
+    console.log('Migrating: Adding pomodoro_id column to learning_time table')
+    database.run('ALTER TABLE learning_time ADD COLUMN pomodoro_id INTEGER')
+  }
+
   saveDatabase()
 }
 
@@ -385,6 +395,40 @@ function createTables() {
     )
   `)
 
+  // 番茄钟记录表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS pomodoro_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      start_time DATETIME NOT NULL,
+      end_time DATETIME,
+      duration INTEGER DEFAULT 0,
+      planned_duration INTEGER DEFAULT 25,
+      status TEXT DEFAULT 'completed',
+      subject_id INTEGER,
+      goal TEXT,
+      pause_count INTEGER DEFAULT 0,
+      total_pause_time INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE SET NULL
+    )
+  `)
+
+  // 番茄钟设置表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS pomodoro_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      focus_duration INTEGER DEFAULT 25,
+      break_duration INTEGER DEFAULT 5,
+      auto_start_break INTEGER DEFAULT 0,
+      auto_start_focus INTEGER DEFAULT 0,
+      daily_goal INTEGER DEFAULT 8,
+      default_subject_id INTEGER,
+      notification_sound INTEGER DEFAULT 1,
+      max_pause_duration INTEGER DEFAULT 300
+    )
+  `)
+
   // 插入默认科目（如果表为空）
   const countResult = database.exec('SELECT COUNT(*) as count FROM subjects')
   const count = countResult.length > 0 ? (countResult[0].values[0] as any[])[0] : 0
@@ -580,6 +624,13 @@ function createTables() {
         [question.title, question.content, question.answer, question.analysis, question.source, question.subject_id, question.chapter_id, question.difficulty]
       )
     }
+  }
+
+  // 插入默认番茄钟设置（如果表为空）
+  const pomodoroSettingsCount = database.exec('SELECT COUNT(*) as count FROM pomodoro_settings')
+  const pomoCount = pomodoroSettingsCount.length > 0 ? (pomodoroSettingsCount[0].values[0] as any[])[0] : 0
+  if (pomoCount === 0) {
+    database.run('INSERT INTO pomodoro_settings (id) VALUES (1)')
   }
 
   // 运行数据库迁移（添加缺失的列）
