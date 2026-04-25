@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase } from './database/init'
 import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService, pomodoroService } from './database/services'
 import { autoUpdater } from 'electron-updater'
+import log from 'electron-log'
 import https from 'https'
 import http from 'http'
 import { menuBarManager } from './menubar'
@@ -89,6 +90,11 @@ app.whenReady().then(async () => {
 autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = true
 
+// 配置日志以便调试
+autoUpdater.logger = log
+log.transports.file.level = 'info'
+log.transports.console.level = 'info'
+
 // 检测到新版本
 autoUpdater.on('update-available', (info) => {
   mainWindow?.webContents.send('update-available', {
@@ -149,7 +155,10 @@ ipcMain.handle('download-update', async () => {
 // IPC：安装更新
 ipcMain.handle('install-update', () => {
   if (isDev) return false
-  autoUpdater.quitAndInstall()
+  log.info('User requested to install update, calling quitAndInstall...')
+  // isSilent: false - 显示安装过程
+  // isForceRunAfter: true - 强制安装后重启应用
+  autoUpdater.quitAndInstall(false, true)
   return true
 })
 
