@@ -58,6 +58,7 @@ interface LearningTimeRecord {
   subject_name: string | null
   subject_color: string | null
   note: string
+  source: string | null
   created_at: string
 }
 
@@ -345,7 +346,9 @@ const TodoPage: React.FC = () => {
                           ]}
                         >
                           <div className="flex items-center gap-3">
-                            <ClockCircleOutlined className="text-blue-500" />
+                            <span className="text-lg">
+                              {item.source === 'pomodoro' ? '⏱' : '✏️'}
+                            </span>
                             <span className="font-medium">{formatDuration(item.duration)}</span>
                             {item.subject_name && (
                               <span

@@ -2,10 +2,11 @@ import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase } from './database/init'
-import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService } from './database/services'
+import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService, pomodoroService } from './database/services'
 import { autoUpdater } from 'electron-updater'
 import https from 'https'
 import http from 'http'
+import { menuBarManager } from './menubar'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -33,6 +34,8 @@ function createWindow() {
   // 窗口准备好后显示
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
+    // Initialize menu bar manager
+    menuBarManager.init(mainWindow!)
   })
 
   if (isDev) {
@@ -52,6 +55,14 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('Failed to initialize database:', error)
   }
+
+  // Load pomodoro settings
+  const pomodoroSettings = pomodoroService.getSettings()
+  menuBarManager.setSettings(pomodoroSettings)
+
+  // Load subjects for menu
+  const subjects = subjectService.getAll()
+  menuBarManager.setSubjects(subjects)
 
   createWindow()
 
@@ -153,6 +164,11 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// 清理资源
+app.on('before-quit', () => {
+  menuBarManager.destroy()
 })
 
 // IPC 处理：显示系统通知
@@ -294,6 +310,37 @@ ipcMain.handle('db:weakPoints:getBySubject', async (_event, subjectId: number) =
 ipcMain.handle('db:weakPoints:add', async (_event, data: any) => weakPointService.add(data))
 ipcMain.handle('db:weakPoints:update', async (_event, id: number, data: any) => weakPointService.update(id, data))
 ipcMain.handle('db:weakPoints:delete', async (_event, id: number) => weakPointService.delete(id))
+
+// ==================== 番茄钟相关 ====================
+ipcMain.handle('pomodoro:getSettings', async () => pomodoroService.getSettings())
+ipcMain.handle('pomodoro:saveSettings', async (_event, data: any) => pomodoroService.saveSettings(data))
+ipcMain.handle('pomodoro:getTodayStats', async () => pomodoroService.getTodayStats())
+ipcMain.handle('pomodoro:getIncompleteSession', async () => pomodoroService.getIncompleteSession())
+ipcMain.handle('pomodoro:createSession', async (_event, data: any) => pomodoroService.createSession(data))
+ipcMain.handle('pomodoro:updateSession', async (_event, id: number, data: any) => pomodoroService.updateSession(id, data))
+
+// ==================== 番茄钟控制相关 (MenuBar) ====================
+ipcMain.handle('pomodoro:start', async (_event, durationMinutes: number, subjectId?: number, goal?: string) => {
+  await menuBarManager.start(durationMinutes, subjectId, goal)
+})
+ipcMain.handle('pomodoro:pause', async () => {
+  menuBarManager.pause()
+})
+ipcMain.handle('pomodoro:resume', async () => {
+  menuBarManager.resume()
+})
+ipcMain.handle('pomodoro:stop', async () => {
+  return menuBarManager.stop()
+})
+ipcMain.handle('pomodoro:getState', async () => {
+  return menuBarManager.getState()
+})
+ipcMain.handle('pomodoro:updateGoal', async (_event, goal: string) => {
+  menuBarManager.updateGoal(goal)
+})
+ipcMain.handle('pomodoro:updateSubject', async (_event, subjectId: number) => {
+  await menuBarManager.updateSubject(subjectId)
+})
 
 // ==================== AI API 调用 ====================
 ipcMain.handle('ai:call', async (_event, options: { url: string; apiKey: string; body: any }) => {

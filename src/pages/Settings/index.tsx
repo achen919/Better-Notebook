@@ -18,6 +18,9 @@ import {
   Typography,
   Progress,
   AutoComplete,
+  InputNumber,
+  Row,
+  Col,
 } from 'antd'
 import {
   PlusOutlined,
@@ -32,8 +35,10 @@ import {
   SyncOutlined,
   DownloadOutlined,
   ReloadOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons'
-import { useSubjectStore } from '../../stores'
+import { useSubjectStore, usePomodoroStore } from '../../stores'
+import { POMODORO_DEFAULTS, POMODORO_LIMITS } from '../../constants/pomodoro'
 import type { Subject, Tag as TagType, Chapter, CreateChapterInput } from '../../types'
 
 const { Panel } = Collapse
@@ -185,6 +190,16 @@ const SettingsPage: React.FC = () => {
   const [aiSettings, setAiSettings] = useState<AISettings | null>(null)
   const [aiSaving, setAiSaving] = useState(false)
 
+  // 番茄钟设置 - 使用 store
+  const {
+    settings: pomodoroSettings,
+    setState: setPomodoroStoreState,
+    fetchSettings: fetchPomodoroSettings,
+    saveSettings: savePomodoroSettings,
+    settingsLoading: pomodoroSaving,
+    setSettingsSaving,
+  } = usePomodoroStore()
+
   // 自动更新
   const [appVersion, setAppVersion] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
@@ -250,6 +265,7 @@ const SettingsPage: React.FC = () => {
     fetchSubjects()
     fetchTags()
     loadAISettings()
+    fetchPomodoroSettings()
     loadAppVersion()
     setupUpdateListeners()
 
@@ -260,7 +276,7 @@ const SettingsPage: React.FC = () => {
       window.electronAPI.updater.removeAllListeners('update-downloaded')
       window.electronAPI.updater.removeAllListeners('update-error')
     }
-  }, [fetchSubjects, fetchTags, loadAISettings, loadAppVersion, setupUpdateListeners])
+  }, [fetchSubjects, fetchTags, loadAISettings, fetchPomodoroSettings, loadAppVersion, setupUpdateListeners])
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true)
@@ -316,6 +332,21 @@ const SettingsPage: React.FC = () => {
       message.error('保存失败')
     } finally {
       setAiSaving(false)
+    }
+  }
+
+  // ==================== 番茄钟设置相关 ====================
+  const handlePomodoroSubmit = async () => {
+    if (!pomodoroSettings) return
+    setSettingsSaving(true)
+    try {
+      await savePomodoroSettings(pomodoroSettings)
+      message.success('番茄钟设置已保存')
+    } catch (error) {
+      console.error('Failed to save pomodoro settings:', error)
+      message.error('保存失败')
+    } finally {
+      setSettingsSaving(false)
     }
   }
 
@@ -555,6 +586,111 @@ const SettingsPage: React.FC = () => {
             </Select>
           </div>
         </div>
+      </Card>
+
+      {/* 番茄钟设置 */}
+      <Card
+        size="small"
+        title={
+          <span className="flex items-center gap-2">
+            <ClockCircleOutlined /> 番茄钟设置
+          </span>
+        }
+      >
+        {pomodoroSettings ? (
+          <div className="space-y-4">
+            <Row gutter={24}>
+              <Col span={12}>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 w-20">专注时长</span>
+                  <InputNumber
+                    min={POMODORO_LIMITS.FOCUS_DURATION.MIN}
+                    max={POMODORO_LIMITS.FOCUS_DURATION.MAX}
+                    value={pomodoroSettings.focus_duration}
+                    onChange={(value) => setPomodoroStoreState({ settings: { ...pomodoroSettings, focus_duration: value || POMODORO_DEFAULTS.FOCUS_DURATION } })}
+                    className="w-20"
+                  />
+                  <span className="text-gray-500">分钟</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 w-20">休息时长</span>
+                  <InputNumber
+                    min={POMODORO_LIMITS.BREAK_DURATION.MIN}
+                    max={POMODORO_LIMITS.BREAK_DURATION.MAX}
+                    value={pomodoroSettings.break_duration}
+                    onChange={(value) => setPomodoroStoreState({ settings: { ...pomodoroSettings, break_duration: value || POMODORO_DEFAULTS.BREAK_DURATION } })}
+                    className="w-20"
+                  />
+                  <span className="text-gray-500">分钟</span>
+                </div>
+              </Col>
+            </Row>
+
+            <Row gutter={24}>
+              <Col span={12}>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 w-20">每日目标</span>
+                  <InputNumber
+                    min={POMODORO_LIMITS.DAILY_GOAL.MIN}
+                    max={POMODORO_LIMITS.DAILY_GOAL.MAX}
+                    value={pomodoroSettings.daily_goal}
+                    onChange={(value) => setPomodoroStoreState({ settings: { ...pomodoroSettings, daily_goal: value || POMODORO_DEFAULTS.DAILY_GOAL } })}
+                    className="w-20"
+                  />
+                  <span className="text-gray-500">个番茄钟</span>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 w-20">默认科目</span>
+                  <Select
+                    value={pomodoroSettings.default_subject_id}
+                    onChange={(value) => setPomodoroStoreState({ settings: { ...pomodoroSettings, default_subject_id: value } })}
+                    style={{ width: 150 }}
+                    allowClear
+                    placeholder="无 (手动选择)"
+                  >
+                    {subjects.map((subject) => (
+                      <Select.Option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+              </Col>
+            </Row>
+
+            <div className="flex items-center gap-3">
+              <span className="text-gray-600">播放提示音</span>
+              <Switch
+                checked={pomodoroSettings.notification_sound === 1}
+                onChange={(checked) => setPomodoroStoreState({ settings: { ...pomodoroSettings, notification_sound: checked ? 1 : 0 } })}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600">暂停超时</span>
+              <InputNumber
+                min={POMODORO_LIMITS.MAX_PAUSE_DURATION.MIN}
+                max={POMODORO_LIMITS.MAX_PAUSE_DURATION.MAX}
+                value={pomodoroSettings.max_pause_duration}
+                onChange={(value) => setPomodoroStoreState({ settings: { ...pomodoroSettings, max_pause_duration: value || POMODORO_DEFAULTS.MAX_PAUSE_DURATION } })}
+                className="w-20"
+              />
+              <span className="text-gray-500">分钟后自动停止</span>
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="primary" onClick={handlePomodoroSubmit} loading={pomodoroSaving}>
+                保存设置
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Text type="secondary">加载中...</Text>
+        )}
       </Card>
 
       {/* AI助手设置 */}

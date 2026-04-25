@@ -162,12 +162,49 @@ contextBridge.exposeInMainWorld('electronAPI', {
       update: (id: number, data: any) => ipcRenderer.invoke('db:weakPoints:update', id, data),
       delete: (id: number) => ipcRenderer.invoke('db:weakPoints:delete', id),
     },
+
+    // 番茄钟相关
+    pomodoro: {
+      getSettings: () => ipcRenderer.invoke('pomodoro:getSettings'),
+      saveSettings: (data: any) => ipcRenderer.invoke('pomodoro:saveSettings', data),
+      getTodayStats: () => ipcRenderer.invoke('pomodoro:getTodayStats'),
+      getIncompleteSession: () => ipcRenderer.invoke('pomodoro:getIncompleteSession'),
+      createSession: (data: any) => ipcRenderer.invoke('pomodoro:createSession', data),
+      updateSession: (id: number, data: any) => ipcRenderer.invoke('pomodoro:updateSession', id, data),
+    },
   },
 
   // AI API 调用
   ai: {
     call: (options: { url: string; apiKey: string; body: any }) =>
       ipcRenderer.invoke('ai:call', options),
+  },
+
+  // 番茄钟控制相关
+  pomodoroControl: {
+    start: (durationMinutes: number, subjectId?: number, goal?: string) =>
+      ipcRenderer.invoke('pomodoro:start', durationMinutes, subjectId, goal),
+    pause: () =>
+      ipcRenderer.invoke('pomodoro:pause'),
+    resume: () =>
+      ipcRenderer.invoke('pomodoro:resume'),
+    stop: () =>
+      ipcRenderer.invoke('pomodoro:stop'),
+    getState: () =>
+      ipcRenderer.invoke('pomodoro:getState'),
+    updateGoal: (goal: string) =>
+      ipcRenderer.invoke('pomodoro:updateGoal', goal),
+    updateSubject: (subjectId: number) =>
+      ipcRenderer.invoke('pomodoro:updateSubject', subjectId),
+    onStateChanged: (callback: (state: any) => void) => {
+      ipcRenderer.on('pomodoro:stateChanged', (_event, state) => callback(state))
+    },
+    onCompleted: (callback: (data: any) => void) => {
+      ipcRenderer.on('pomodoro:completed', (_event, data) => callback(data))
+    },
+    removeAllListeners: (channel: string) => {
+      ipcRenderer.removeAllListeners(channel)
+    },
   },
 
   // 自动更新相关
@@ -317,6 +354,14 @@ export interface ElectronAPI {
       update: (id: number, data: any) => Promise<void>
       delete: (id: number) => Promise<void>
     }
+    pomodoro: {
+      getSettings: () => Promise<any>
+      saveSettings: (data: any) => Promise<void>
+      getTodayStats: () => Promise<any>
+      getIncompleteSession: () => Promise<any>
+      createSession: (data: any) => Promise<number>
+      updateSession: (id: number, data: any) => Promise<void>
+    }
   }
   updater: {
     checkForUpdates: () => Promise<any>
@@ -332,6 +377,18 @@ export interface ElectronAPI {
   }
   ai: {
     call: (options: { url: string; apiKey: string; body: any }) => Promise<any>
+  }
+  pomodoroControl: {
+    start: (durationMinutes: number, subjectId?: number, goal?: string) => Promise<void>
+    pause: () => Promise<void>
+    resume: () => Promise<void>
+    stop: () => Promise<{ duration: number; completed: boolean; totalPauseTime: number } | null>
+    getState: () => Promise<any>
+    updateGoal: (goal: string) => Promise<void>
+    updateSubject: (subjectId: number) => Promise<void>
+    onStateChanged: (callback: (state: any) => void) => void
+    onCompleted: (callback: (data: any) => void) => void
+    removeAllListeners: (channel: string) => void
   }
 }
 
