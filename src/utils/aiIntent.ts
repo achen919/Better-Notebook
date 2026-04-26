@@ -1,5 +1,5 @@
 // src/utils/aiIntent.ts
-import type { AIResponseWithIntent, ParsedQuestion, ParsedMilestone } from '../types/ai'
+import type { AIResponseWithIntent, ParsedMilestone } from '../types/ai'
 
 const INTENT_PROMPT = `你是学习助手，除了回答用户问题，还需要识别用户意图。
 

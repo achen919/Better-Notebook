@@ -25,7 +25,22 @@ import {
   ClearOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import type { Question, Subject } from '../../types'
+import type { Question, Subject, Chapter, Tag } from '../../types'
+import ImportResultArea from '../../components/Chat/ImportResultArea'
+import PlanResultArea from '../../components/Chat/PlanResultArea'
+import {
+  buildIntentPrompt,
+  parseAIResponse,
+  generateQuestionId,
+  generateMilestoneId,
+  calculateMilestoneDates,
+} from '../../utils/aiIntent'
+import type {
+  ParsedQuestion,
+  ParsedMilestone,
+  AIIntent,
+  SyncSettings,
+} from '../../types/ai'
 
 const { TextArea } = Input
 const { Text, Paragraph } = Typography
@@ -90,6 +105,26 @@ const ChatPage: React.FC = () => {
   const [newQuestionTitle, setNewQuestionTitle] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // AI 模式状态
+  type ChatMode = 'normal' | 'import' | 'plan'
+  const [mode, setMode] = useState<ChatMode>('normal')
+
+  // 错题录入相关
+  const [parsedQuestions, setParsedQuestions] = useState<ParsedQuestion[]>([])
+  const [chapters, setChapters] = useState<Chapter[]>([])
+
+  // 学习规划相关
+  const [planTopic, setPlanTopic] = useState('')
+  const [parsedMilestones, setParsedMilestones] = useState<ParsedMilestone[]>([])
+  const [syncSettings, setSyncSettings] = useState<SyncSettings>({
+    createTask: true,
+    createTodo: true,
+    dailyDuration: 60,
+  })
+
+  // 确认中状态
+  const [confirming, setConfirming] = useState(false)
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
@@ -110,6 +145,13 @@ const ChatPage: React.FC = () => {
       setMessages(history.reverse())
       setSubjects(subjectList)
       setWeakPoints(weakPointsList)
+      // 获取所有章节需要遍历科目
+      const allChapters: Chapter[] = []
+      for (const s of subjectList) {
+        const subjectChapters = await window.electronAPI.db.chapters.getBySubject(s.id)
+        allChapters.push(...subjectChapters)
+      }
+      setChapters(allChapters)
     } catch (error) {
       console.error('Failed to load data:', error)
     }
@@ -153,25 +195,45 @@ const ChatPage: React.FC = () => {
     setMessages(prev => [...prev, newUserMsg])
 
     try {
-      // 调用AI API
-      const response = await callAI(userMessage, aiSettings)
+      // 构建带意图识别的 prompt
+      const intentPrompt = buildIntentPrompt(userMessage, subjects.map(s => s.name))
 
-      // 添加AI回复
+      // 调用 AI
+      const response = await callAIWithIntent(userMessage, intentPrompt, aiSettings)
+
+      // 解析响应
+      const { reply, intent } = parseAIResponse(response)
+
+      // 添加 AI 回复
       const assistantId = await window.electronAPI.db.chatHistory.add({
         role: 'assistant',
-        content: response,
+        content: reply,
         subject_id: selectedSubject,
       })
 
       const newAIMsg: ChatMessage = {
         id: assistantId,
         role: 'assistant',
-        content: response,
+        content: reply,
         subject_id: selectedSubject,
         subject_name: subjects.find(s => s.id === selectedSubject)?.name,
         created_at: new Date().toISOString(),
       }
       setMessages(prev => [...prev, newAIMsg])
+
+      // 处理意图
+      if (intent && intent.type !== 'normal' && intent.confidence >= 0.7) {
+        handleIntent(intent)
+      } else if (intent && intent.confidence < 0.7 && intent.type !== 'normal') {
+        // 低置信度，提示确认
+        Modal.confirm({
+          title: '意图确认',
+          content: intent.type === 'import'
+            ? '检测到您可能想整理错题，是否进入批量录入模式？'
+            : '检测到您可能想制定学习计划，是否进入规划模式？',
+          onOk: () => handleIntent(intent),
+        })
+      }
 
       // 分析弱势点
       await analyzeWeakPoints(userMessage)
@@ -305,6 +367,268 @@ const ChatPage: React.FC = () => {
     } catch (error) {
       console.error('AI call failed:', error)
       throw error
+    }
+  }
+
+  const callAIWithIntent = async (
+    message: string,
+    intentPrompt: string,
+    settings: AISettings
+  ): Promise<string> => {
+    let baseUrl = settings.api_base_url || 'https://api.openai.com/v1'
+
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = 'https://' + baseUrl
+    }
+    baseUrl = baseUrl.replace(/\/+$/, '')
+
+    const isAnthropic = baseUrl.includes('/anthropic') || baseUrl.includes('anthropic')
+
+    let apiUrl: string
+    let requestBody: Record<string, unknown>
+
+    if (isAnthropic) {
+      apiUrl = `${baseUrl}/v1/messages`
+      requestBody = {
+        model: settings.model || 'claude-3-haiku-20240307',
+        max_tokens: 4000,
+        messages: [
+          { role: 'user', content: intentPrompt },
+        ],
+      }
+    } else {
+      apiUrl = `${baseUrl}/chat/completions`
+      requestBody = {
+        model: settings.model || 'gpt-3.5-turbo',
+        messages: [
+          { role: 'user', content: intentPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 4000,
+      }
+    }
+
+    const data = await window.electronAPI.ai.call({
+      url: apiUrl,
+      apiKey: settings.api_key,
+      body: requestBody,
+    }) as AIResponse
+
+    // 解析响应
+    if (data.choices?.[0]?.message?.content) {
+      return data.choices[0].message.content
+    }
+    if (data.choices?.[0]?.text) {
+      return data.choices[0].text
+    }
+    if (Array.isArray(data.content)) {
+      const textBlock = data.content.find((block) => block.type === 'text')
+      if (textBlock?.text) return textBlock.text
+      if (data.content[0]?.text) return data.content[0].text
+    }
+    if (typeof data.content === 'string') {
+      return data.content
+    }
+
+    throw new Error('无法解析AI响应格式')
+  }
+
+  const handleIntent = (intent: AIIntent) => {
+    if (intent.type === 'import' && intent.data?.questions) {
+      // 处理错题录入
+      const questions = intent.data.questions.map(q => ({
+        ...q,
+        id: generateQuestionId(),
+        isNewSubject: !subjects.find(s => s.name === q.subject),
+      }))
+      setParsedQuestions(questions)
+      setMode('import')
+
+      // 大量错题时提示
+      if (questions.length >= 4) {
+        message.info(`识别到 ${questions.length} 条错题，请确认后批量录入`)
+      }
+    } else if (intent.type === 'plan') {
+      // 处理学习规划
+      const planParams = intent.data?.planParams
+      const milestones = intent.data?.milestones
+
+      if (planParams) {
+        setPlanTopic(planParams.topic)
+      }
+
+      if (milestones && milestones.length > 0) {
+        const processedMilestones = calculateMilestoneDates(
+          milestones.map(m => ({ ...m, id: generateMilestoneId() }))
+        )
+        setParsedMilestones(processedMilestones)
+        setMode('plan')
+      } else if (planParams) {
+        // 需要二次调用生成里程碑
+        generateMilestones(planParams.topic, planParams.duration)
+      }
+    }
+  }
+
+  const generateMilestones = async (topic: string, duration?: number) => {
+    if (!aiSettings?.api_key) return
+
+    setLoading(true)
+    try {
+      const prompt = `用户想学习：${topic}
+${duration ? `总时长：${duration} 天` : '请根据内容难度估算合理的天数'}
+
+请生成学习里程碑，每个里程碑包含：
+- title: 里程碑标题
+- description: 详细描述和学习要点
+- days: 预计天数
+- dailyTopics: 每日学习主题数组
+
+要求：
+1. 里程碑之间要有逻辑顺序，从基础到进阶
+2. 每个里程碑的天数之和应等于总时长
+3. dailyTopics 的长度应等于 days
+
+返回 JSON 数组格式：
+[
+  {
+    "title": "...",
+    "description": "...",
+    "days": 7,
+    "dailyTopics": ["Day 1: ...", "Day 2: ...", ...]
+  },
+  ...
+]`
+
+      const response = await callAIWithIntent(prompt, prompt, aiSettings)
+      const jsonMatch = response.match(/\[[\s\S]*\]/)
+
+      if (jsonMatch) {
+        const milestones = JSON.parse(jsonMatch[0]) as Array<{
+          title: string
+          description: string
+          days: number
+          dailyTopics: string[]
+        }>
+        const processedMilestones = calculateMilestoneDates(
+          milestones.map((m) => ({ ...m, id: generateMilestoneId() }))
+        )
+        setParsedMilestones(processedMilestones)
+        setMode('plan')
+      }
+    } catch (error) {
+      message.error('生成里程碑失败')
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 错题录入确认
+  const handleImportConfirm = async (selectedQuestions: ParsedQuestion[]) => {
+    setConfirming(true)
+    try {
+      // 获取 AI 标签
+      const tags = await window.electronAPI.db.tags.getAll() as Tag[]
+      const aiTag = tags.find((t) => t.name === 'AI生成')
+
+      let successCount = 0
+      for (const q of selectedQuestions) {
+        try {
+          // 创建错题
+          const questionId = await window.electronAPI.db.questions.create({
+            title: q.title,
+            content: q.content || '',
+            answer: q.answer || '',
+            analysis: q.analysis || '',
+            subject_id: q.selectedSubjectId,
+            chapter_id: q.selectedChapterId,
+          })
+
+          // 关联 AI 标签
+          if (aiTag && questionId) {
+            await window.electronAPI.db.questionTags.add(questionId, aiTag.id)
+          }
+
+          successCount++
+        } catch (error) {
+          console.error('Failed to create question:', q.title, error)
+        }
+      }
+
+      message.success(`成功录入 ${successCount} 条错题`)
+      setMode('normal')
+      setParsedQuestions([])
+    } catch (error) {
+      message.error('录入失败')
+      console.error(error)
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  // 学习规划确认
+  const handlePlanConfirm = async () => {
+    setConfirming(true)
+    try {
+      if (syncSettings.createTask) {
+        // 创建任务
+        const taskId = await window.electronAPI.db.tasks.create({
+          title: `学习计划：${planTopic}`,
+          description: `AI 生成的学习计划，共 ${parsedMilestones.reduce((s, m) => s + m.days, 0)} 天`,
+          deadline: parsedMilestones[parsedMilestones.length - 1]?.targetDate,
+          priority: 2,
+          progress_type: 'subitems',
+          ai_generated: 1,
+        })
+
+        // 创建里程碑
+        for (const m of parsedMilestones) {
+          await window.electronAPI.db.milestones.create({
+            task_id: taskId,
+            title: m.title,
+            description: m.description,
+            target_date: m.targetDate,
+            ai_generated: 1,
+          })
+        }
+
+        // 创建子任务
+        for (const m of parsedMilestones) {
+          await window.electronAPI.db.taskSubitems.create({
+            task_id: taskId,
+            title: m.title,
+          })
+        }
+      }
+
+      if (syncSettings.createTodo) {
+        // 创建每日计划
+        let dayOffset = 0
+        for (const m of parsedMilestones) {
+          for (let i = 0; i < m.days; i++) {
+            const date = dayjs().add(dayOffset + i, 'day').format('YYYY-MM-DD')
+            const topic = m.dailyTopics[i] || `${m.title} Day ${i + 1}`
+
+            await window.electronAPI.db.todo.create({
+              date,
+              content: `[${planTopic}] ${topic}`,
+              ai_generated: 1,
+            })
+          }
+          dayOffset += m.days
+        }
+      }
+
+      message.success('学习计划创建成功')
+      setMode('normal')
+      setParsedMilestones([])
+      setPlanTopic('')
+    } catch (error) {
+      message.error('创建失败')
+      console.error(error)
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -516,6 +840,71 @@ ${weakPoints.map(wp => `- [${wp.subject_name || '未分类'}] ${wp.topic}: ${wp.
           </div>
         )}
       </Card>
+
+      {/* AI 功能结果展示区 */}
+      {mode === 'import' && (
+        <ImportResultArea
+          questions={parsedQuestions}
+          subjects={subjects}
+          chapters={chapters}
+          onEdit={(index, data) => {
+            const updated = [...parsedQuestions]
+            updated[index] = { ...updated[index], ...data }
+            setParsedQuestions(updated)
+          }}
+          onCreateSubject={async (name) => {
+            const id = await window.electronAPI.db.subjects.create({ name })
+            const newSubject = { id, name, color: '#1890ff', icon: '', created_at: new Date().toISOString() }
+            setSubjects(prev => [...prev, newSubject])
+            return id
+          }}
+          onConfirm={handleImportConfirm}
+          onCancel={() => {
+            setMode('normal')
+            setParsedQuestions([])
+          }}
+          loading={confirming}
+        />
+      )}
+
+      {mode === 'plan' && (
+        <PlanResultArea
+          milestones={parsedMilestones}
+          topic={planTopic}
+          onEditMilestone={(index, data) => {
+            const updated = [...parsedMilestones]
+            updated[index] = { ...updated[index], ...data }
+            setParsedMilestones(updated)
+          }}
+          onAddMilestone={() => {
+            const lastDate = parsedMilestones.length > 0
+              ? dayjs(parsedMilestones[parsedMilestones.length - 1].targetDate).add(1, 'day')
+              : dayjs()
+
+            const newMilestone: ParsedMilestone = {
+              id: generateMilestoneId(),
+              title: '新里程碑',
+              description: '',
+              days: 7,
+              targetDate: lastDate.add(6, 'day').format('YYYY-MM-DD'),
+              dailyTopics: Array(7).fill(''),
+            }
+            setParsedMilestones(prev => [...prev, newMilestone])
+          }}
+          onRemoveMilestone={(index) => {
+            setParsedMilestones(prev => prev.filter((_, i) => i !== index))
+          }}
+          syncSettings={syncSettings}
+          onSyncSettingsChange={setSyncSettings}
+          onConfirm={handlePlanConfirm}
+          onCancel={() => {
+            setMode('normal')
+            setParsedMilestones([])
+            setPlanTopic('')
+          }}
+          loading={confirming}
+        />
+      )}
 
       {/* 输入区域 */}
       <Card size="small">
