@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { initDatabase, closeDatabase } from './database/init'
+import { initDatabase, closeDatabase, dbHelpers } from './database/init'
 import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService, pomodoroService } from './database/services'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
@@ -238,6 +238,15 @@ ipcMain.handle('db:tags:getAll', async () => tagService.getAll())
 ipcMain.handle('db:tags:create', async (_event, data: any) => tagService.create(data))
 ipcMain.handle('db:tags:update', async (_event, id: number, data: any) => tagService.update(id, data))
 ipcMain.handle('db:tags:delete', async (_event, id: number) => tagService.delete(id))
+
+// ==================== 问题标签关联相关 ====================
+ipcMain.handle('db:questionTags:add', async (_event, questionId: number, tagId: number) => {
+  dbHelpers.run(
+    `INSERT OR IGNORE INTO question_tags (question_id, tag_id) VALUES (?, ?)`,
+    [questionId, tagId]
+  )
+  return true
+})
 
 // ==================== 统计相关 ====================
 ipcMain.handle('db:statistics:getOverview', async () => statisticsService.getOverview())
