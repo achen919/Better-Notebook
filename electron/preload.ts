@@ -58,6 +58,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       delete: (id: number) => ipcRenderer.invoke('db:tags:delete', id),
     },
 
+    // 问题标签关联相关
+    questionTags: {
+      add: (questionId: number, tagId: number) =>
+        ipcRenderer.invoke('db:questionTags:add', questionId, tagId),
+    },
+
     // 统计相关
     statistics: {
       getOverview: () => ipcRenderer.invoke('db:statistics:getOverview'),
@@ -272,6 +278,9 @@ export interface ElectronAPI {
       create: (data: any) => Promise<number>
       update: (id: number, data: any) => Promise<void>
       delete: (id: number) => Promise<void>
+    }
+    questionTags: {
+      add: (questionId: number, tagId: number) => Promise<boolean>
     }
     statistics: {
       getOverview: () => Promise<any>

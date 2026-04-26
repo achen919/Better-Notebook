@@ -510,11 +510,11 @@ export const todoService = {
   },
 
   // 创建TODO
-  create(data: { date: string; content: string; sort_order?: number }) {
+  create(data: { date: string; content: string; sort_order?: number; ai_generated?: number }) {
     const result = run(`
-      INSERT INTO daily_todos (date, content, sort_order)
-      VALUES (?, ?, ?)
-    `, [data.date, data.content, data.sort_order || 0])
+      INSERT INTO daily_todos (date, content, sort_order, ai_generated)
+      VALUES (?, ?, ?, ?)
+    `, [data.date, data.content, data.sort_order || 0, data.ai_generated || 0])
     return result.lastInsertRowid
   },
 
@@ -776,21 +776,23 @@ export const taskService = {
   create(data: {
     title: string
     description?: string
-    deadline: string
+    deadline?: string
     priority?: number
     progress_type?: 'percentage' | 'subitems'
     total_value?: number
+    ai_generated?: number
   }) {
     const result = run(`
-      INSERT INTO tasks (title, description, deadline, priority, progress_type, total_value)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO tasks (title, description, deadline, priority, progress_type, total_value, ai_generated)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [
       data.title,
       data.description || '',
-      data.deadline,
+      data.deadline || new Date().toISOString().split('T')[0],
       data.priority || 2,
       data.progress_type || 'percentage',
-      data.total_value || 100
+      data.total_value || 100,
+      data.ai_generated || 0
     ])
     return result.lastInsertRowid
   },
@@ -945,11 +947,11 @@ export const milestoneService = {
   },
 
   // 创建里程碑
-  create(data: { task_id: number; title: string; description?: string; target_date?: string }) {
+  create(data: { task_id: number; title: string; description?: string; target_date?: string; ai_generated?: number }) {
     const result = run(`
-      INSERT INTO milestones (task_id, title, description, target_date)
-      VALUES (?, ?, ?, ?)
-    `, [data.task_id, data.title, data.description || '', data.target_date || null])
+      INSERT INTO milestones (task_id, title, description, target_date, ai_generated)
+      VALUES (?, ?, ?, ?, ?)
+    `, [data.task_id, data.title, data.description || '', data.target_date || null, data.ai_generated || 0])
     return result.lastInsertRowid
   },
 

@@ -156,6 +156,20 @@ function runMigrations() {
     database.run('ALTER TABLE learning_time ADD COLUMN pomodoro_id INTEGER')
   }
 
+  // AI 生成字段迁移
+  if (!columnExists('tasks', 'ai_generated')) {
+    console.log('Migrating: Adding ai_generated column to tasks table')
+    database.run('ALTER TABLE tasks ADD COLUMN ai_generated INTEGER DEFAULT 0')
+  }
+  if (!columnExists('milestones', 'ai_generated')) {
+    console.log('Migrating: Adding ai_generated column to milestones table')
+    database.run('ALTER TABLE milestones ADD COLUMN ai_generated INTEGER DEFAULT 0')
+  }
+  if (!columnExists('daily_todos', 'ai_generated')) {
+    console.log('Migrating: Adding ai_generated column to daily_todos table')
+    database.run('ALTER TABLE daily_todos ADD COLUMN ai_generated INTEGER DEFAULT 0')
+  }
+
   saveDatabase()
 }
 
@@ -635,6 +649,17 @@ function createTables() {
 
   // 运行数据库迁移（添加缺失的列）
   runMigrations()
+
+  // 预置 AI 生成标签
+  try {
+    const existingTag = get(`SELECT id FROM tags WHERE name = ?`, ['AI生成'])
+    if (!existingTag) {
+      run(`INSERT INTO tags (name, color) VALUES (?, ?)`, ['AI生成', '#722ed1'])
+      console.log('AI生成 tag created')
+    }
+  } catch (error) {
+    console.log('Failed to create AI tag:', error)
+  }
 
   saveDatabase()
 }
