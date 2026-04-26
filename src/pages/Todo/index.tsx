@@ -39,6 +39,7 @@ interface TodoItem {
   completed: number
   sort_order: number
   created_at: string
+  ai_generated?: number
 }
 
 interface DailySummary {
@@ -410,6 +411,9 @@ const TodoPage: React.FC = () => {
                             >
                               {item.content}
                             </span>
+                            {item.ai_generated === 1 && (
+                              <Tag color="#722ed1" style={{ marginLeft: 4 }}>AI</Tag>
+                            )}
                           </div>
                         </List.Item>
                       )}

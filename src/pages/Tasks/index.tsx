@@ -46,6 +46,7 @@ interface Task {
   subitem_count: number
   completed_subitems: number
   created_at: string
+  ai_generated?: number
 }
 
 interface TaskSubitem {
@@ -368,6 +369,9 @@ const TasksPage: React.FC = () => {
                       <Tag color={priorityColors[task.priority - 1]}>
                         {priorityLabels[task.priority - 1]}
                       </Tag>
+                      {task.ai_generated === 1 && (
+                        <Tag color="#722ed1">AI</Tag>
+                      )}
                       {isOverdue && <Tag color="red">已逾期</Tag>}
                       {isUrgent && <Tag color="orange">即将到期</Tag>}
                     </div>
