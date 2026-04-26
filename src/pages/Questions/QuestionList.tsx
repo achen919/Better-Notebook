@@ -24,7 +24,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useQuestionStore, useSubjectStore } from '../../stores'
 import { getRemainingTime, getReviewProgress } from '../../utils/ebbinghaus'
-import type { Question, Tag } from '../../types'
+import type { Question, Tag as TagType } from '../../types'
 
 const { Search } = Input
 const { Option } = Select
@@ -125,7 +125,7 @@ const QuestionListPage: React.FC = () => {
       dataIndex: 'tagList',
       key: 'tags',
       width: 120,
-      render: (tagList: Tag[]) =>
+      render: (tagList: TagType[]) =>
         tagList && tagList.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {tagList.map((tag) => (

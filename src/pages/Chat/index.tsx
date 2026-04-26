@@ -25,7 +25,7 @@ import {
   ClearOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import type { Question, Subject, Chapter, Tag } from '../../types'
+import type { Question, Subject, Chapter, Tag as TagType } from '../../types'
 import ImportResultArea from '../../components/Chat/ImportResultArea'
 import PlanResultArea from '../../components/Chat/PlanResultArea'
 import {
@@ -371,7 +371,7 @@ const ChatPage: React.FC = () => {
   }
 
   const callAIWithIntent = async (
-    message: string,
+    _userMessage: string,
     intentPrompt: string,
     settings: AISettings
   ): Promise<string> => {
@@ -529,7 +529,7 @@ ${duration ? `总时长：${duration} 天` : '请根据内容难度估算合理�
     setConfirming(true)
     try {
       // 获取 AI 标签
-      const tags = await window.electronAPI.db.tags.getAll() as Tag[]
+      const tags = await window.electronAPI.db.tags.getAll() as TagType[]
       const aiTag = tags.find((t) => t.name === 'AI生成')
 
       let successCount = 0

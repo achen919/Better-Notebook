@@ -29,7 +29,7 @@ export interface ParsedMilestone {
   title: string
   description: string
   days: number
-  targetDate: string
+  targetDate?: string  // 计算得出，由 calculateMilestoneDates 添加
   dailyTopics: string[]  // 每日学习主题
 }
 
