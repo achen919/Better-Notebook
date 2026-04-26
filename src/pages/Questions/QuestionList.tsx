@@ -24,7 +24,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useQuestionStore, useSubjectStore } from '../../stores'
 import { getRemainingTime, getReviewProgress } from '../../utils/ebbinghaus'
-import type { Question } from '../../types'
+import type { Question, Tag } from '../../types'
 
 const { Search } = Input
 const { Option } = Select
@@ -119,6 +119,28 @@ const QuestionListPage: React.FC = () => {
       width: 120,
       ellipsis: true,
       render: (text: string) => <span className="text-gray-500">{text || '-'}</span>,
+    },
+    {
+      title: '标签',
+      dataIndex: 'tagList',
+      key: 'tags',
+      width: 120,
+      render: (tagList: Tag[]) =>
+        tagList && tagList.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {tagList.map((tag) => (
+              <Tag
+                key={tag.id}
+                color={tag.color}
+                style={{ borderRadius: 4, margin: 0 }}
+              >
+                {tag.name}
+              </Tag>
+            ))}
+          </div>
+        ) : (
+          <span className="text-gray-400">-</span>
+        ),
     },
     {
       title: '难度',
