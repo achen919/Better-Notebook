@@ -4,8 +4,9 @@ import { POMODORO_DEFAULTS } from '../constants/pomodoro'
 
 interface PomodoroStoreState {
   // Timer state
-  status: 'idle' | 'running' | 'paused'
+  status: 'idle' | 'running' | 'paused' | 'overtime'
   remaining: number
+  overtime: number
   totalDuration: number
   currentSubjectId: number | null
   currentSubjectName: string | null
@@ -57,6 +58,7 @@ export const usePomodoroStore = create<PomodoroStore>((set, get) => ({
   // Initial state
   status: 'idle',
   remaining: 0,
+  overtime: 0,
   totalDuration: 0,
   currentSubjectId: null,
   currentSubjectName: null,
@@ -78,6 +80,7 @@ export const usePomodoroStore = create<PomodoroStore>((set, get) => ({
         set({
           status: state.status || 'idle',
           remaining: state.remaining || 0,
+          overtime: state.overtime || 0,
           totalDuration: state.totalDuration || 0,
           currentSubjectId: state.subjectId || null,
           currentSubjectName: state.subjectName || null,
@@ -236,6 +239,7 @@ export const usePomodoroStore = create<PomodoroStore>((set, get) => ({
       set({
         status: state.status,
         remaining: state.remaining,
+        overtime: state.overtime || 0,
         totalDuration: state.totalDuration,
         currentSubjectId: state.subjectId,
         currentSubjectName: state.subjectName,

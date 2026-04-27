@@ -19,6 +19,7 @@ import {
   Tabs,
   Table,
   Tag,
+  Switch,
 } from 'antd'
 import {
   PlusOutlined,
@@ -70,6 +71,18 @@ interface TodoStats {
   completed: number
 }
 
+interface FixedTodo {
+  id: number
+  title: string
+  start_date: string
+  end_date: string
+  weekdays: string
+  active: number
+  created_at: string
+  total_instances?: number
+  completed_instances?: number
+}
+
 const TodoPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [todos, setTodos] = useState<TodoItem[]>([])
@@ -91,8 +104,21 @@ const TodoPage: React.FC = () => {
   const [learningTimeStats, setLearningTimeStats] = useState<{ date: string; total_duration: number }[]>([])
   const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'year'>('week')
 
+  // 固定计划相关
+  const [fixedTodos, setFixedTodos] = useState<FixedTodo[]>([])
+  const [fixedTodoModalVisible, setFixedTodoModalVisible] = useState(false)
+  const [newFixedTodo, setNewFixedTodo] = useState({
+    title: '',
+    start_date: dayjs().format('YYYY-MM-DD'),
+    end_date: dayjs().add(30, 'day').format('YYYY-MM-DD'),
+    weekdays: [1, 2, 3, 4, 5] as number[],
+  })
+
   const loadTodos = useCallback(async () => {
     try {
+      // 先为当天生成固定计划
+      await window.electronAPI.db.fixedTodos.generateForDate(selectedDate)
+      // 然后加载当天的任务
       const result = await window.electronAPI.db.todo.getByDate(selectedDate)
       setTodos(result)
     } catch (error) {
@@ -143,12 +169,22 @@ const TodoPage: React.FC = () => {
     }
   }, [statsPeriod])
 
+  const loadFixedTodos = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.db.fixedTodos.getAll()
+      setFixedTodos(result)
+    } catch (error) {
+      console.error('Failed to load fixed todos:', error)
+    }
+  }, [])
+
   useEffect(() => {
     loadTodos()
     loadSummary()
     loadLearningTime()
     loadSubjects()
-  }, [loadLearningTime, loadSubjects, loadSummary, loadTodos])
+    loadFixedTodos()
+  }, [loadFixedTodos, loadLearningTime, loadSubjects, loadSummary, loadTodos])
 
   useEffect(() => {
     loadStats()
@@ -234,6 +270,57 @@ const TodoPage: React.FC = () => {
     try {
       await window.electronAPI.db.learningTime.delete(id)
       loadLearningTime()
+    } catch (error) {
+      message.error('删除失败')
+    }
+  }
+
+  // 固定计划相关函数
+  const addFixedTodo = async () => {
+    if (!newFixedTodo.title.trim()) {
+      message.warning('请输入计划标题')
+      return
+    }
+    if (newFixedTodo.weekdays.length === 0) {
+      message.warning('请选择至少一个星期')
+      return
+    }
+
+    try {
+      await window.electronAPI.db.fixedTodos.create({
+        title: newFixedTodo.title.trim(),
+        start_date: newFixedTodo.start_date,
+        end_date: newFixedTodo.end_date,
+        weekdays: newFixedTodo.weekdays.join(','),
+      })
+      message.success('创建成功')
+      setFixedTodoModalVisible(false)
+      setNewFixedTodo({
+        title: '',
+        start_date: dayjs().format('YYYY-MM-DD'),
+        end_date: dayjs().add(30, 'day').format('YYYY-MM-DD'),
+        weekdays: [1, 2, 3, 4, 5],
+      })
+      loadFixedTodos()
+      loadTodos()
+    } catch (error) {
+      message.error('创建失败')
+    }
+  }
+
+  const toggleFixedTodoActive = async (id: number, active: number) => {
+    try {
+      await window.electronAPI.db.fixedTodos.update(id, { active: active ? 0 : 1 })
+      loadFixedTodos()
+    } catch (error) {
+      message.error('更新失败')
+    }
+  }
+
+  const deleteFixedTodo = async (id: number) => {
+    try {
+      await window.electronAPI.db.fixedTodos.delete(id)
+      loadFixedTodos()
     } catch (error) {
       message.error('删除失败')
     }
@@ -516,6 +603,93 @@ const TodoPage: React.FC = () => {
               </div>
             ),
           },
+          {
+            key: 'fixed',
+            label: '固定计划',
+            children: (
+              <div className="space-y-4">
+                <Card size="small">
+                  <div className="flex items-center justify-between mb-4">
+                    <Text strong>管理固定计划</Text>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setFixedTodoModalVisible(true)}>
+                      新增固定计划
+                    </Button>
+                  </div>
+                  <div className="text-gray-500 text-sm mb-2">
+                    固定计划会在指定的日期范围和星期内自动添加到每日计划中
+                  </div>
+                </Card>
+
+                {fixedTodos.length > 0 ? (
+                  <List
+                    dataSource={fixedTodos}
+                    renderItem={(item) => {
+                      const completionRate = item.total_instances && item.total_instances > 0
+                        ? Math.round(((item.completed_instances || 0) / item.total_instances) * 100)
+                        : 0
+                      const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+                      const selectedWeekdays = item.weekdays.split(',').map(w => weekdayNames[parseInt(w)]).join('、')
+
+                      return (
+                        <Card size="small" className="mb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Text strong className={item.active ? '' : 'text-gray-400'}>
+                                  {item.title}
+                                </Text>
+                                <Tag color={item.active ? 'green' : 'default'}>
+                                  {item.active ? '进行中' : '已暂停'}
+                                </Tag>
+                              </div>
+                              <div className="text-sm text-gray-500 mb-1">
+                                <CalendarOutlined className="mr-1" />
+                                {dayjs(item.start_date).format('MM-DD')} 至 {dayjs(item.end_date).format('MM-DD')}
+                              </div>
+                              <div className="text-sm text-gray-500 mb-2">
+                                <ClockCircleOutlined className="mr-1" />
+                                {selectedWeekdays}
+                              </div>
+                              {item.total_instances && item.total_instances > 0 && (
+                                <div>
+                                  <div className="text-xs text-gray-400 mb-1">
+                                    完成进度: {item.completed_instances || 0}/{item.total_instances} ({completionRate}%)
+                                  </div>
+                                  <Progress percent={completionRate} size="small" showInfo={false} />
+                                </div>
+                              )}
+                            </div>
+                            <Space>
+                              <Switch
+                                checked={item.active === 1}
+                                onChange={() => toggleFixedTodoActive(item.id, item.active)}
+                                checkedChildren="启用"
+                                unCheckedChildren="暂停"
+                              />
+                              <Button
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => {
+                                  Modal.confirm({
+                                    title: '确认删除',
+                                    content: '确定要删除此固定计划吗？',
+                                    onOk: () => deleteFixedTodo(item.id),
+                                  })
+                                }}
+                              />
+                            </Space>
+                          </div>
+                        </Card>
+                      )
+                    }}
+                  />
+                ) : (
+                  <Empty description="暂无固定计划，创建一个吧" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                )}
+              </div>
+            ),
+          },
         ]}
       />
 
@@ -619,6 +793,86 @@ const TodoPage: React.FC = () => {
           <div className="flex justify-end gap-2">
             <Button onClick={() => setSummaryModalVisible(false)}>取消</Button>
             <Button type="primary" onClick={saveSummary}>保存</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 固定计划弹窗 */}
+      <Modal
+        title="新增固定计划"
+        open={fixedTodoModalVisible}
+        onCancel={() => setFixedTodoModalVisible(false)}
+        footer={null}
+        width={450}
+      >
+        <div className="space-y-4">
+          <div>
+            <div className="text-gray-500 text-sm mb-2">计划标题</div>
+            <Input
+              placeholder="例如：每日背单词、晨间阅读..."
+              value={newFixedTodo.title}
+              onChange={(e) => setNewFixedTodo({ ...newFixedTodo, title: e.target.value })}
+            />
+          </div>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <div className="text-gray-500 text-sm mb-2">开始日期</div>
+              <DatePicker
+                value={dayjs(newFixedTodo.start_date)}
+                onChange={(date) => setNewFixedTodo({ ...newFixedTodo, start_date: date?.format('YYYY-MM-DD') || '' })}
+                format="YYYY-MM-DD"
+                style={{ width: '100%' }}
+              />
+            </Col>
+            <Col span={12}>
+              <div className="text-gray-500 text-sm mb-2">结束日期</div>
+              <DatePicker
+                value={dayjs(newFixedTodo.end_date)}
+                onChange={(date) => setNewFixedTodo({ ...newFixedTodo, end_date: date?.format('YYYY-MM-DD') || '' })}
+                format="YYYY-MM-DD"
+                style={{ width: '100%' }}
+              />
+            </Col>
+          </Row>
+
+          <div>
+            <div className="text-gray-500 text-sm mb-2">重复星期</div>
+            <div className="flex gap-2">
+              {[
+                { value: 1, label: '一' },
+                { value: 2, label: '二' },
+                { value: 3, label: '三' },
+                { value: 4, label: '四' },
+                { value: 5, label: '五' },
+                { value: 6, label: '六' },
+                { value: 7, label: '日' },
+              ].map((day) => (
+                <Button
+                  key={day.value}
+                  type={newFixedTodo.weekdays.includes(day.value) ? 'primary' : 'default'}
+                  size="small"
+                  onClick={() => {
+                    const newWeekdays = newFixedTodo.weekdays.includes(day.value)
+                      ? newFixedTodo.weekdays.filter((w) => w !== day.value)
+                      : [...newFixedTodo.weekdays, day.value].sort()
+                    setNewFixedTodo({ ...newFixedTodo, weekdays: newWeekdays })
+                  }}
+                >
+                  {day.label}
+                </Button>
+              ))}
+            </div>
+            <div className="text-gray-400 text-xs mt-1">
+              已选择: {newFixedTodo.weekdays.length > 0
+                ? newFixedTodo.weekdays.map(w => ['一', '二', '三', '四', '五', '六', '日'][w - 1]).join('、')
+                : '未选择'}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setFixedTodoModalVisible(false)}>取消</Button>
+            <Button type="primary" onClick={addFixedTodo}>创建</Button>
           </div>
         </div>
       </Modal>

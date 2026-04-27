@@ -10,6 +10,7 @@ export interface MenuBarState {
   status: TimerState
   remaining: number
   totalDuration: number
+  overtime: number
   subjectId: number | null
   subjectName: string
   goal: string
@@ -26,6 +27,7 @@ export interface PomodoroSettings {
   default_subject_id: number | null
   notification_sound: number
   max_pause_duration: number
+  max_overtime_duration: number
 }
 
 export interface Subject {
@@ -41,6 +43,7 @@ export class MenuBarManager {
     status: 'idle',
     remaining: 0,
     totalDuration: 25,
+    overtime: 0,
     subjectId: null,
     subjectName: '',
     goal: '',
@@ -54,6 +57,7 @@ export class MenuBarManager {
     this.timer = new PomodoroTimer({
       onTick: this.handleTick.bind(this),
       onComplete: this.handleComplete.bind(this),
+      onOvertimeLimit: this.handleOvertimeLimit.bind(this),
       onPauseTimeout: this.handlePauseTimeout.bind(this),
     })
   }
@@ -145,10 +149,13 @@ export class MenuBarManager {
    * Start a pomodoro session
    */
   async start(durationMinutes: number, subjectId?: number, goal?: string): Promise<void> {
-    // Get settings for max pause duration
+    // Get settings for max pause duration and max overtime
     const settings = pomodoroService.getSettings()
     if (settings?.max_pause_duration) {
       this.timer.setMaxPauseDuration(settings.max_pause_duration)
+    }
+    if (settings?.max_overtime_duration) {
+      this.timer.setMaxOvertimeDuration(settings.max_overtime_duration)
     }
 
     // Create a new session in the database
@@ -178,6 +185,7 @@ export class MenuBarManager {
       status: 'running',
       remaining: durationMinutes * 60,
       totalDuration: durationMinutes,
+      overtime: 0,
       subjectId: subjectId || null,
       subjectName,
       goal: goal || '',
@@ -199,7 +207,7 @@ export class MenuBarManager {
    * Pause the current pomodoro
    */
   pause(): void {
-    if (this.state.status !== 'running') return
+    if (this.state.status !== 'running' && this.state.status !== 'overtime') return
 
     this.timer.pause()
     this.state.status = 'paused'
@@ -216,7 +224,8 @@ export class MenuBarManager {
     if (this.state.status !== 'paused') return
 
     this.timer.resume()
-    this.state.status = 'running'
+    // The timer will set the correct state based on overtime
+    this.state.status = this.state.overtime > 0 ? 'overtime' : 'running'
 
     this.updateTrayTitle()
     this.updateMenu()
@@ -226,7 +235,7 @@ export class MenuBarManager {
   /**
    * Stop the current pomodoro
    */
-  stop(): { duration: number; completed: boolean; totalPauseTime: number } | null {
+  stop(): { duration: number; completed: boolean; totalPauseTime: number; overtime: number } | null {
     if (this.state.status === 'idle') return null
 
     const result = this.timer.stop()
@@ -247,6 +256,7 @@ export class MenuBarManager {
       status: 'idle',
       remaining: 0,
       totalDuration: 25,
+      overtime: 0,
       subjectId: null,
       subjectName: '',
       goal: '',
@@ -300,62 +310,45 @@ export class MenuBarManager {
   /**
    * Handle timer tick
    */
-  private handleTick(remaining: number): void {
+  private handleTick(remaining: number, overtime: number): void {
     this.state.remaining = remaining
+    this.state.overtime = overtime
+    if (overtime > 0) {
+      this.state.status = 'overtime'
+    }
     this.updateTrayTitle()
     this.notifyStateChange()
   }
 
   /**
-   * Handle timer complete
+   * Handle timer complete (enters overtime mode)
    */
   private handleComplete(): void {
-    // Get actual duration from timer
-    const result = this.timer.stop()
-
-    this.state.status = 'idle'
-    this.state.remaining = 0
-
-    // Update session in database with actual duration and pause time
-    if (this.state.sessionId) {
-      const now = new Date()
-      pomodoroService.updateSession(this.state.sessionId, {
-        end_time: now.toISOString(),
-        duration: result.duration,
-        status: 'completed',
-        total_pause_time: result.totalPauseTime,
-      })
-    }
-
-    // Show notification
+    // Timer continues into overtime - don't stop it
+    // Just notify the user
     this.showNotification(
-      '\u{4E13}\u{6CE8}\u{5B8C}\u{6210}\u{FF01}',
-      `${this.state.totalDuration}\u{5206}\u{949F}\u{7684}\u{4E13}\u{6CE8}\u{65F6}\u{95F4}\u{7ED3}\u{675F}\u{4E86}\u{FF0C}\u{4F11}\u{606F}\u{4E00}\u{4E0B}\u{5427}~`
+      '专注完成！',
+      `${this.state.totalDuration}分钟的专注时间结束了，可以继续或结束。`
     )
 
-    // Notify renderer to show completion modal
+    // Notify renderer that the planned time is up
     this.mainWindow?.webContents.send('pomodoro:completed', {
       sessionId: this.state.sessionId,
-      duration: result.duration,
+      duration: this.state.totalDuration * 60,
       subjectId: this.state.subjectId,
       subjectName: this.state.subjectName,
       goal: this.state.goal,
     })
+  }
 
-    // Reset state
-    this.state = {
-      status: 'idle',
-      remaining: 0,
-      totalDuration: 25,
-      subjectId: null,
-      subjectName: '',
-      goal: '',
-      sessionId: null,
-    }
-
-    this.updateTrayTitle()
-    this.updateMenu()
-    this.notifyStateChange()
+  /**
+   * Handle overtime limit reached
+   */
+  private handleOvertimeLimit(): void {
+    this.showNotification(
+      '超时上限！',
+      '已达到最大超时时间，番茄钟自动结束。'
+    )
   }
 
   /**
@@ -373,8 +366,8 @@ export class MenuBarManager {
 
     // Show notification
     this.showNotification(
-      '\u{756A}\u{8304}\u{949F}\u{5DF2}\u{505C}\u{6B62}',
-      '\u{6682}\u{505C}\u{65F6}\u{95F4}\u{8FC7}\u{957F}\u{FF0C}\u{672C}\u{6B21}\u{4E13}\u{6CE8}\u{5DF2}\u{53D6}\u{6D88}'
+      '番茄钟已停止',
+      '暂停时间过长，本次专注已取消'
     )
 
     // Reset state
@@ -382,6 +375,7 @@ export class MenuBarManager {
       status: 'idle',
       remaining: 0,
       totalDuration: 25,
+      overtime: 0,
       subjectId: null,
       subjectName: '',
       goal: '',
@@ -399,16 +393,26 @@ export class MenuBarManager {
   private updateTrayTitle(): void {
     if (!this.tray) return
 
-    let title = '\u{23F1} ' // Timer emoji ⏱
+    let title = '⏱ '
 
     if (this.state.status === 'running') {
       const minutes = Math.floor(this.state.remaining / 60)
       const seconds = this.state.remaining % 60
       title += `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    } else if (this.state.status === 'overtime') {
+      const minutes = Math.floor(this.state.overtime / 60)
+      const seconds = this.state.overtime % 60
+      title += `+${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
     } else if (this.state.status === 'paused') {
-      const minutes = Math.floor(this.state.remaining / 60)
-      const seconds = this.state.remaining % 60
-      title += `\u{23F8} ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      if (this.state.overtime > 0) {
+        const minutes = Math.floor(this.state.overtime / 60)
+        const seconds = this.state.overtime % 60
+        title += `⏸ +${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      } else {
+        const minutes = Math.floor(this.state.remaining / 60)
+        const seconds = this.state.remaining % 60
+        title += `⏸ ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      }
     }
 
     this.tray.setTitle(title)

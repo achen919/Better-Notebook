@@ -154,6 +154,7 @@ export interface PomodoroSettings {
   default_subject_id: number | null
   notification_sound: number
   max_pause_duration: number
+  max_overtime_duration: number
 }
 
 export interface PomodoroSession {
@@ -174,9 +175,10 @@ export interface PomodoroSession {
 }
 
 export interface PomodoroState {
-  status: 'idle' | 'running' | 'paused'
+  status: 'idle' | 'running' | 'paused' | 'overtime'
   remaining: number
   totalDuration: number
+  overtime: number
   subjectId: number | null
   subjectName: string | null
   goal: string

@@ -1028,8 +1028,17 @@ export const aiSettingsService = {
 // ==================== 聊天历史相关操作 ====================
 
 export const chatHistoryService = {
-  // 获取聊天历史
-  getAll(limit: number = 100) {
+  // 获取聊天历史（支持按会话筛选）
+  getAll(limit: number = 100, sessionId?: number) {
+    if (sessionId) {
+      return all(`
+        SELECT ch.*, s.name as subject_name
+        FROM chat_history ch
+        LEFT JOIN subjects s ON ch.subject_id = s.id
+        WHERE ch.session_id = ?
+        ORDER BY ch.created_at ASC
+      `, [sessionId])
+    }
     return all(`
       SELECT ch.*, s.name as subject_name
       FROM chat_history ch
@@ -1040,11 +1049,11 @@ export const chatHistoryService = {
   },
 
   // 添加聊天记录
-  add(data: { role: string; content: string; subject_id?: number }) {
+  add(data: { role: string; content: string; subject_id?: number; session_id?: number }) {
     const result = run(`
-      INSERT INTO chat_history (role, content, subject_id)
-      VALUES (?, ?, ?)
-    `, [data.role, data.content, data.subject_id || null])
+      INSERT INTO chat_history (role, content, subject_id, session_id)
+      VALUES (?, ?, ?, ?)
+    `, [data.role, data.content, data.subject_id || null, data.session_id || null])
     return result.lastInsertRowid
   },
 
@@ -1054,12 +1063,20 @@ export const chatHistoryService = {
   },
 
   // 清空历史
-  clear() {
-    run('DELETE FROM chat_history')
+  clear(sessionId?: number) {
+    if (sessionId) {
+      run('DELETE FROM chat_history WHERE session_id = ?', [sessionId])
+    } else {
+      run('DELETE FROM chat_history')
+    }
   },
 
   // 删除单条记录
   delete(id: number) {
+    if (id === undefined || id === null || isNaN(id)) {
+      console.warn('chatHistory.delete called with invalid id:', id)
+      return
+    }
     run('DELETE FROM chat_history WHERE id = ?', [id])
   },
 }
@@ -1142,6 +1159,7 @@ export const pomodoroService = {
     default_subject_id?: number
     notification_sound?: number
     max_pause_duration?: number
+    max_overtime_duration?: number
   }) {
     const existing = get('SELECT id FROM pomodoro_settings WHERE id = 1')
 
@@ -1182,6 +1200,10 @@ export const pomodoroService = {
         fields.push('max_pause_duration = ?')
         values.push(data.max_pause_duration)
       }
+      if (data.max_overtime_duration !== undefined) {
+        fields.push('max_overtime_duration = ?')
+        values.push(data.max_overtime_duration)
+      }
 
       if (fields.length > 0) {
         run(`UPDATE pomodoro_settings SET ${fields.join(', ')} WHERE id = 1`, values)
@@ -1190,8 +1212,8 @@ export const pomodoroService = {
     } else {
       // Insert new settings
       const result = run(`
-        INSERT INTO pomodoro_settings (id, focus_duration, break_duration, auto_start_break, auto_start_focus, daily_goal, default_subject_id, notification_sound, max_pause_duration)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO pomodoro_settings (id, focus_duration, break_duration, auto_start_break, auto_start_focus, daily_goal, default_subject_id, notification_sound, max_pause_duration, max_overtime_duration)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         data.focus_duration ?? 25,
         data.break_duration ?? 5,
@@ -1201,6 +1223,7 @@ export const pomodoroService = {
         data.default_subject_id ?? null,
         data.notification_sound ?? 1,
         data.max_pause_duration ?? 300,
+        data.max_overtime_duration ?? 600,
       ])
       return result.lastInsertRowid
     }
@@ -1287,5 +1310,229 @@ export const pomodoroService = {
       ORDER BY start_time DESC
       LIMIT 1
     `)
+  },
+}
+
+// ==================== 通知设置相关操作 ====================
+
+export const notificationService = {
+  // 获取通知设置
+  getSettings() {
+    return get('SELECT * FROM notification_settings WHERE id = 1')
+  },
+
+  // 保存通知设置
+  saveSettings(data: {
+    review_reminder_enabled?: number
+    review_reminder_time?: string
+    pomodoro_notification_enabled?: number
+  }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.review_reminder_enabled !== undefined) {
+      fields.push('review_reminder_enabled = ?')
+      values.push(data.review_reminder_enabled)
+    }
+    if (data.review_reminder_time !== undefined) {
+      fields.push('review_reminder_time = ?')
+      values.push(data.review_reminder_time)
+    }
+    if (data.pomodoro_notification_enabled !== undefined) {
+      fields.push('pomodoro_notification_enabled = ?')
+      values.push(data.pomodoro_notification_enabled)
+    }
+
+    if (fields.length > 0) {
+      fields.push('updated_at = CURRENT_TIMESTAMP')
+      run(`UPDATE notification_settings SET ${fields.join(', ')} WHERE id = 1`, values)
+    }
+  },
+}
+
+// ==================== 聊天会话相关操作 ====================
+
+export const chatSessionService = {
+  // 获取所有会话
+  getAll() {
+    return all(`
+      SELECT cs.*,
+        (SELECT COUNT(*) FROM chat_history WHERE session_id = cs.id) as message_count,
+        (SELECT content FROM chat_history WHERE session_id = cs.id AND role = 'user' ORDER BY created_at ASC LIMIT 1) as first_message
+      FROM chat_sessions cs
+      ORDER BY cs.updated_at DESC
+    `)
+  },
+
+  // 获取会话详情
+  getById(id: number) {
+    return get('SELECT * FROM chat_sessions WHERE id = ?', [id])
+  },
+
+  // 创建新会话
+  create(title: string = '新对话') {
+    const result = run(`
+      INSERT INTO chat_sessions (title)
+      VALUES (?)
+    `, [title])
+    return result.lastInsertRowid
+  },
+
+  // 更新会话标题
+  updateTitle(id: number, title: string) {
+    run(`
+      UPDATE chat_sessions
+      SET title = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [title, id])
+  },
+
+  // 更新会话时间
+  touch(id: number) {
+    run('UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id])
+  },
+
+  // 删除会话（级联删除历史记录）
+  delete(id: number) {
+    run('DELETE FROM chat_sessions WHERE id = ?', [id])
+  },
+
+  // 获取会话的聊天历史
+  getHistory(sessionId: number) {
+    return all(`
+      SELECT ch.*, s.name as subject_name
+      FROM chat_history ch
+      LEFT JOIN subjects s ON ch.subject_id = s.id
+      WHERE ch.session_id = ?
+      ORDER BY ch.created_at ASC
+    `, [sessionId])
+  },
+}
+
+// ==================== 固定计划相关操作 ====================
+
+export const fixedTodoService = {
+  // 获取所有固定计划
+  getAll() {
+    return all(`
+      SELECT ft.*,
+        (SELECT COUNT(*) FROM fixed_todo_instances WHERE fixed_todo_id = ft.id) as total_instances,
+        (SELECT COUNT(*) FROM fixed_todo_instances WHERE fixed_todo_id = ft.id AND completed = 1) as completed_instances
+      FROM fixed_todos ft
+      WHERE ft.active = 1
+      ORDER BY ft.created_at DESC
+    `)
+  },
+
+  // 创建固定计划
+  create(data: { title: string; start_date: string; end_date: string; weekdays: string }) {
+    const result = run(`
+      INSERT INTO fixed_todos (title, start_date, end_date, weekdays)
+      VALUES (?, ?, ?, ?)
+    `, [data.title, data.start_date, data.end_date, data.weekdays])
+    return result.lastInsertRowid
+  },
+
+  // 更新固定计划
+  update(id: number, data: { title?: string; start_date?: string; end_date?: string; weekdays?: string; active?: number }) {
+    const fields: string[] = []
+    const values: any[] = []
+
+    if (data.title !== undefined) {
+      fields.push('title = ?')
+      values.push(data.title)
+    }
+    if (data.start_date !== undefined) {
+      fields.push('start_date = ?')
+      values.push(data.start_date)
+    }
+    if (data.end_date !== undefined) {
+      fields.push('end_date = ?')
+      values.push(data.end_date)
+    }
+    if (data.weekdays !== undefined) {
+      fields.push('weekdays = ?')
+      values.push(data.weekdays)
+    }
+    if (data.active !== undefined) {
+      fields.push('active = ?')
+      values.push(data.active)
+    }
+
+    if (fields.length > 0) {
+      run(`UPDATE fixed_todos SET ${fields.join(', ')} WHERE id = ?`, [...values, id])
+    }
+  },
+
+  // 删除固定计划
+  delete(id: number) {
+    run('DELETE FROM fixed_todos WHERE id = ?', [id])
+  },
+
+  // 为某天生成固定计划实例
+  generateForDate(date: string) {
+    const dayOfWeek = new Date(date).getDay() || 7 // 0=周日 -> 7
+    const fixedTodos = all(`
+      SELECT * FROM fixed_todos
+      WHERE active = 1
+        AND date(start_date) <= date(?)
+        AND date(end_date) >= date(?)
+        AND weekdays LIKE ?
+    `, [date, date, `%${dayOfWeek}%`])
+
+    for (const ft of fixedTodos) {
+      // 检查是否已存在实例
+      const existing = get(`
+        SELECT id FROM fixed_todo_instances
+        WHERE fixed_todo_id = ? AND date = ?
+      `, [ft.id, date])
+
+      if (!existing) {
+        // 创建每日任务
+        const todoResult = run(`
+          INSERT INTO daily_todos (date, content, sort_order)
+          VALUES (?, ?, 0)
+        `, [date, ft.title])
+
+        // 创建实例记录
+        run(`
+          INSERT INTO fixed_todo_instances (fixed_todo_id, date, todo_id)
+          VALUES (?, ?, ?)
+        `, [ft.id, date, todoResult.lastInsertRowid])
+      }
+    }
+  },
+
+  // 获取某天的固定计划实例
+  getInstancesByDate(date: string) {
+    return all(`
+      SELECT fti.*, ft.title as fixed_title, dt.completed as todo_completed
+      FROM fixed_todo_instances fti
+      JOIN fixed_todos ft ON fti.fixed_todo_id = ft.id
+      LEFT JOIN daily_todos dt ON fti.todo_id = dt.id
+      WHERE fti.date = ?
+      ORDER BY ft.title
+    `, [date])
+  },
+
+  // 更新实例完成状态
+  updateInstanceStatus(id: number, completed: number) {
+    run('UPDATE fixed_todo_instances SET completed = ? WHERE id = ?', [completed, id])
+    // 同时更新关联的todo
+    const instance = get('SELECT todo_id FROM fixed_todo_instances WHERE id = ?', [id])
+    if (instance?.todo_id) {
+      run('UPDATE daily_todos SET completed = ? WHERE id = ?', [completed, instance.todo_id])
+    }
+  },
+
+  // 获取固定计划的统计信息
+  getStats(id: number) {
+    return get(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed
+      FROM fixed_todo_instances
+      WHERE fixed_todo_id = ?
+    `, [id])
   },
 }
