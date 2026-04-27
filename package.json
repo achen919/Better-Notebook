@@ -1,6 +1,6 @@
 {
   "name": "better-notebook",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Better-Notebook 学习笔记与错题本应用",
   "main": "dist-electron/main.js",
   "author": "achen919",
