@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Layout, Menu, message } from 'antd'
+import { Layout, Menu, message, Tag, Dropdown, Popover } from 'antd'
+import type { MenuProps } from 'antd'
 import {
   HomeOutlined,
   BookOutlined,
@@ -9,13 +10,16 @@ import {
   CheckSquareOutlined,
   ClockCircleOutlined,
   RobotOutlined,
+  FireOutlined,
+  PlayCircleOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
 import PomodoroCompleteModal from '../PomodoroCompleteModal'
-import { useSubjectStore, usePomodoroStore } from '@/stores'
+import { useSubjectStore, usePomodoroStore, useThemeStore, THEME_PRESETS, type ThemeKey } from '@/stores'
 import type { Subject } from '@/types'
 
-const { Sider, Content } = Layout
+const { Sider, Content, Header } = Layout
 
 interface CompletedPomodoroData {
   sessionId: number | null
@@ -39,12 +43,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   // Get subjects from store
   const { subjects, fetchSubjects } = useSubjectStore()
-  const { fetchTodayStats } = usePomodoroStore()
+  const {
+    status,
+    remaining,
+    overtime,
+    currentSubjectName,
+    fetchTodayStats,
+    fetchState,
+    setupListeners,
+    cleanupListeners,
+    start,
+  } = usePomodoroStore()
+
+  const { currentTheme, setTheme } = useThemeStore()
+  const themeConfig = THEME_PRESETS[currentTheme]
 
   // Fetch subjects on mount
   useEffect(() => {
     fetchSubjects()
   }, [fetchSubjects])
+
+  // Setup pomodoro state listeners
+  useEffect(() => {
+    fetchState()
+    setupListeners()
+    return () => {
+      cleanupListeners()
+    }
+  }, [fetchState, setupListeners, cleanupListeners])
 
   // Setup pomodoro event listeners
   useEffect(() => {
@@ -121,6 +147,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       label: '每日计划',
     },
     {
+      key: '/pomodoro',
+      icon: <FireOutlined />,
+      label: '番茄钟',
+    },
+    {
       key: '/tasks',
       icon: <ClockCircleOutlined />,
       label: '任务倒计时',
@@ -156,17 +187,102 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     navigate(key)
   }
 
+  // Format time for display (seconds to MM:SS)
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // Quick start pomodoro with preset duration
+  const handleQuickStart = async (duration: number, isBreak: boolean) => {
+    try {
+      await start(duration, undefined, undefined, isBreak ? '休息' : '学习')
+      message.success(`已开始 ${duration} 分钟${isBreak ? '休息' : '专注'}`)
+    } catch (error) {
+      console.error('Failed to start pomodoro:', error)
+      message.error('启动失败')
+    }
+  }
+
+  // Quick action menu items
+  const quickActionItems: MenuProps['items'] = [
+    {
+      key: 'break-5',
+      label: '☕ 休息 5 分钟',
+      onClick: () => handleQuickStart(5, true),
+    },
+    {
+      key: 'break-15',
+      label: '☕ 休息 15 分钟',
+      onClick: () => handleQuickStart(15, true),
+    },
+    { type: 'divider' },
+    {
+      key: 'focus-45',
+      label: '📚 学习 45 分钟',
+      onClick: () => handleQuickStart(45, false),
+    },
+    {
+      key: 'focus-25',
+      label: '📚 学习 25 分钟',
+      onClick: () => handleQuickStart(25, false),
+    },
+  ]
+
   return (
     <Layout className="min-h-screen">
       <Sider
         width={200}
         className="shadow-lg"
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          background: themeConfig.siderBg,
+        }}
       >
-        <div className="h-14 flex items-center justify-center border-b border-white/10">
-          <span className="text-white text-lg font-bold tracking-wide">
-            📚 错题本
-          </span>
+        {/* Logo - 避开 Mac 红绿灯，增加顶部间距 */}
+        <div
+          className="flex items-center justify-center border-b border-white/10"
+          style={{
+            height: 56,
+            paddingTop: 28, // 避开 Mac 红绿灯
+            paddingBottom: 8,
+          }}
+        >
+          <div className="flex items-center gap-2">
+            {/* 先锋派 Logo */}
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm"
+              style={{
+                background: `linear-gradient(135deg, ${themeConfig.colorPrimary}, ${themeConfig.colorPrimary}88)`,
+                color: '#fff',
+                boxShadow: `0 0 20px ${themeConfig.colorPrimary}66`,
+              }}
+            >
+              M
+            </div>
+            <div className="flex flex-col">
+              <span
+                className="text-sm font-bold tracking-wider"
+                style={{ color: themeConfig.siderText }}
+              >
+                MINDFLOW
+              </span>
+              <span
+                className="text-[10px] opacity-60 -mt-0.5"
+                style={{ color: themeConfig.siderText }}
+              >
+                记忆增强系统
+              </span>
+            </div>
+          </div>
         </div>
+
         <Menu
           theme="dark"
           mode="inline"
@@ -174,18 +290,101 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           items={menuItems}
           onClick={handleMenuClick}
           className="border-none"
+          style={{ background: 'transparent' }}
         />
+
+        {/* 底部：主题切换 + 版本信息 */}
         <div className="absolute bottom-4 left-0 right-0 px-4">
-          <div className="text-white/50 text-xs text-center">
-            艾宾浩斯记忆法
+          <Popover
+            content={
+              <div className="grid grid-cols-4 gap-2 p-1">
+                {(Object.keys(THEME_PRESETS) as ThemeKey[]).map((key) => (
+                  <div
+                    key={key}
+                    className={`w-10 h-10 rounded-lg cursor-pointer flex items-center justify-center transition-all hover:scale-110 ${
+                      currentTheme === key ? 'ring-2 ring-offset-2 ring-blue-500' : ''
+                    }`}
+                    style={{
+                      background: THEME_PRESETS[key].siderBg,
+                      border: `2px solid ${THEME_PRESETS[key].colorPrimary}`,
+                    }}
+                    onClick={() => setTheme(key)}
+                    title={THEME_PRESETS[key].name}
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full"
+                      style={{ background: THEME_PRESETS[key].colorPrimary }}
+                    />
+                  </div>
+                ))}
+              </div>
+            }
+            title="选择主题"
+            trigger="click"
+            placement="topRight"
+          >
+            <div
+              className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg cursor-pointer transition-all hover:bg-white/10"
+              style={{ color: themeConfig.siderText }}
+            >
+              <BgColorsOutlined />
+              <span className="text-xs">{themeConfig.name}</span>
+            </div>
+          </Popover>
+          <div
+            className="text-xs text-center mt-2 opacity-40"
+            style={{ color: themeConfig.siderText }}
+          >
+            Ebbinghaus v1.0
           </div>
         </div>
       </Sider>
-      <Layout className="bg-gray-50">
+      <Layout className="bg-gray-50" style={{ marginLeft: 200 }}>
+        {/* Header with pomodoro countdown */}
+        <Header className="bg-white shadow-sm flex items-center justify-between px-6" style={{ height: 48, lineHeight: '48px' }}>
+          <div className="flex items-center gap-4">
+            {/* Pomodoro countdown display */}
+            {status !== 'idle' && (
+              <div
+                className={`flex items-center gap-2 cursor-pointer px-3 py-1 rounded-full transition-colors ${
+                  status === 'overtime' ? 'bg-red-100 hover:bg-red-200' : 'bg-gray-100 hover:bg-gray-200'
+                }`}
+                onClick={() => navigate('/pomodoro')}
+              >
+                <FireOutlined className={`${status === 'running' ? 'text-orange-500 animate-pulse' : status === 'overtime' ? 'text-red-500 animate-pulse' : 'text-orange-500'}`} />
+                <span className={`font-mono text-lg font-semibold ${status === 'overtime' ? 'text-red-600' : 'text-gray-800'}`}>
+                  {status === 'overtime' ? `+${formatTime(overtime)}` : formatTime(remaining)}
+                </span>
+                {currentSubjectName && (
+                  <Tag color="blue" className="ml-1">{currentSubjectName}</Tag>
+                )}
+                {status === 'paused' && (
+                  <Tag color="orange">已暂停</Tag>
+                )}
+                {status === 'overtime' && (
+                  <Tag color="red">超时</Tag>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Quick action buttons */}
+          <div className="flex items-center gap-2">
+            <Dropdown.Button
+              menu={{ items: quickActionItems }}
+              placement="bottomRight"
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={() => handleQuickStart(25, false)}
+            >
+              开始专注
+            </Dropdown.Button>
+          </div>
+        </Header>
         <Content
           className="m-4 p-5 bg-white rounded-xl shadow-sm"
           style={{
-            minHeight: 'calc(100vh - 32px)',
+            minHeight: 'calc(100vh - 80px)',
             overflow: 'auto',
           }}
         >

@@ -3,6 +3,7 @@ export const POMODORO_DEFAULTS = {
   BREAK_DURATION: 5,
   DAILY_GOAL: 8,
   MAX_PAUSE_DURATION: 5,
+  MAX_OVERTIME_DURATION: 10,
 } as const
 
 export const POMODORO_LIMITS = {
@@ -10,4 +11,5 @@ export const POMODORO_LIMITS = {
   BREAK_DURATION: { MIN: 1, MAX: 30 },
   DAILY_GOAL: { MIN: 1, MAX: 20 },
   MAX_PAUSE_DURATION: { MIN: 1, MAX: 30 },
+  MAX_OVERTIME_DURATION: { MIN: 0, MAX: 60 },
 } as const

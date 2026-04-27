@@ -79,6 +79,13 @@ interface DownloadProgress {
   percent: number
 }
 
+interface NotificationSettings {
+  id: number
+  review_reminder_enabled: number
+  review_reminder_time: string
+  pomodoro_notification_enabled: number
+}
+
 const getHexColor = (value: string | FormColorValue | undefined, fallback: string) => {
   if (typeof value === 'string') {
     return value
@@ -200,6 +207,10 @@ const SettingsPage: React.FC = () => {
     setSettingsSaving,
   } = usePomodoroStore()
 
+  // 通知设置
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null)
+  const [notificationSaving, setNotificationSaving] = useState(false)
+
   // 自动更新
   const [appVersion, setAppVersion] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
@@ -235,6 +246,15 @@ const SettingsPage: React.FC = () => {
     }
   }, [aiForm])
 
+  const loadNotificationSettings = useCallback(async () => {
+    try {
+      const settings = await window.electronAPI.db.notification.getSettings() as NotificationSettings | null
+      setNotificationSettings(settings)
+    } catch (error) {
+      console.error('Failed to load notification settings:', error)
+    }
+  }, [])
+
   const setupUpdateListeners = useCallback(() => {
     window.electronAPI.updater.onUpdateAvailable((info: UpdateInfo) => {
       setUpdateInfo(info)
@@ -266,6 +286,7 @@ const SettingsPage: React.FC = () => {
     fetchTags()
     loadAISettings()
     fetchPomodoroSettings()
+    loadNotificationSettings()
     loadAppVersion()
     setupUpdateListeners()
 
@@ -276,7 +297,7 @@ const SettingsPage: React.FC = () => {
       window.electronAPI.updater.removeAllListeners('update-downloaded')
       window.electronAPI.updater.removeAllListeners('update-error')
     }
-  }, [fetchSubjects, fetchTags, loadAISettings, fetchPomodoroSettings, loadAppVersion, setupUpdateListeners])
+  }, [fetchSubjects, fetchTags, loadAISettings, fetchPomodoroSettings, loadNotificationSettings, loadAppVersion, setupUpdateListeners])
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true)
@@ -347,6 +368,25 @@ const SettingsPage: React.FC = () => {
       message.error('保存失败')
     } finally {
       setSettingsSaving(false)
+    }
+  }
+
+  // ==================== 通知设置相关 ====================
+  const handleNotificationSave = async () => {
+    if (!notificationSettings) return
+    setNotificationSaving(true)
+    try {
+      await window.electronAPI.db.notification.saveSettings({
+        review_reminder_enabled: notificationSettings.review_reminder_enabled,
+        review_reminder_time: notificationSettings.review_reminder_time,
+        pomodoro_notification_enabled: notificationSettings.pomodoro_notification_enabled,
+      })
+      message.success('通知设置已保存')
+    } catch (error) {
+      console.error('Failed to save notification settings:', error)
+      message.error('保存失败')
+    } finally {
+      setNotificationSaving(false)
     }
   }
 
@@ -570,22 +610,57 @@ const SettingsPage: React.FC = () => {
           </span>
         }
       >
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-3">
-            <span className="text-gray-600">启用复习提醒</span>
-            <Switch defaultChecked />
+        {notificationSettings ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-8">
+              <div className="flex items-center gap-3">
+                <span className="text-gray-600">启用复习提醒</span>
+                <Switch
+                  checked={notificationSettings.review_reminder_enabled === 1}
+                  onChange={(checked) => setNotificationSettings({
+                    ...notificationSettings,
+                    review_reminder_enabled: checked ? 1 : 0
+                  })}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-gray-600">提醒时间</span>
+                <Select
+                  value={notificationSettings.review_reminder_time}
+                  onChange={(value) => setNotificationSettings({
+                    ...notificationSettings,
+                    review_reminder_time: value
+                  })}
+                  style={{ width: 100 }}
+                  size="small"
+                >
+                  <Select.Option value="08:00">08:00</Select.Option>
+                  <Select.Option value="09:00">09:00</Select.Option>
+                  <Select.Option value="10:00">10:00</Select.Option>
+                  <Select.Option value="20:00">20:00</Select.Option>
+                  <Select.Option value="21:00">21:00</Select.Option>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-600">番茄钟完成通知</span>
+              <Switch
+                checked={notificationSettings.pomodoro_notification_enabled === 1}
+                onChange={(checked) => setNotificationSettings({
+                  ...notificationSettings,
+                  pomodoro_notification_enabled: checked ? 1 : 0
+                })}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button type="primary" onClick={handleNotificationSave} loading={notificationSaving}>
+                保存设置
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-gray-600">提醒时间</span>
-            <Select defaultValue="09:00" style={{ width: 100 }} size="small">
-              <Select.Option value="08:00">08:00</Select.Option>
-              <Select.Option value="09:00">09:00</Select.Option>
-              <Select.Option value="10:00">10:00</Select.Option>
-              <Select.Option value="20:00">20:00</Select.Option>
-              <Select.Option value="21:00">21:00</Select.Option>
-            </Select>
-          </div>
-        </div>
+        ) : (
+          <Text type="secondary">加载中...</Text>
+        )}
       </Card>
 
       {/* 番茄钟设置 */}
@@ -680,6 +755,18 @@ const SettingsPage: React.FC = () => {
                 className="w-20"
               />
               <span className="text-gray-500">分钟后自动停止</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600">超时上限</span>
+              <InputNumber
+                min={POMODORO_LIMITS.MAX_OVERTIME_DURATION.MIN}
+                max={POMODORO_LIMITS.MAX_OVERTIME_DURATION.MAX}
+                value={pomodoroSettings.max_overtime_duration}
+                onChange={(value) => setPomodoroStoreState({ settings: { ...pomodoroSettings, max_overtime_duration: value ?? POMODORO_DEFAULTS.MAX_OVERTIME_DURATION } })}
+                className="w-20"
+              />
+              <span className="text-gray-500">分钟后自动结束（0=无限制）</span>
             </div>
 
             <div className="flex justify-end">

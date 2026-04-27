@@ -154,6 +154,7 @@ export interface PomodoroSettings {
   default_subject_id: number | null
   notification_sound: number
   max_pause_duration: number
+  max_overtime_duration: number
 }
 
 export interface PomodoroSession {
@@ -174,9 +175,10 @@ export interface PomodoroSession {
 }
 
 export interface PomodoroState {
-  status: 'idle' | 'running' | 'paused'
+  status: 'idle' | 'running' | 'paused' | 'overtime'
   remaining: number
   totalDuration: number
+  overtime: number
   subjectId: number | null
   subjectName: string | null
   goal: string
@@ -186,4 +188,19 @@ export interface PomodoroState {
 export interface PomodoroTodayStats {
   count: number
   total_duration: number
+}
+
+export interface ChatSession {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+  message_count?: number
+}
+
+export interface ParsedMilestoneInput {
+  title?: string
+  description?: string
+  days?: number
+  dailyTopics?: string[]
 }

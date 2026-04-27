@@ -88,12 +88,18 @@ export function closeDatabase() {
 }
 
 // 执行 SQL 语句（带自动保存）
-function run(sql: string, params: any[] = []): any {
+// 返回包含 lastInsertRowid 的结果对象，用于 INSERT 语句
+function run(sql: string, params: any[] = []): { lastInsertRowid: number; changes: number } {
   const database = getDatabase()
   try {
-    const result = database.run(sql, params)
+    database.run(sql, params)
+    // sql.js 需要单独查询 lastInsertRowid 和 changes
+    const lastIdResult = database.exec('SELECT last_insert_rowid() as id')
+    const changesResult = database.exec('SELECT changes() as changes')
+    const lastInsertRowid = lastIdResult[0]?.values[0]?.[0] as number || 0
+    const changes = changesResult[0]?.values[0]?.[0] as number || 0
     saveDatabase()
-    return result
+    return { lastInsertRowid, changes }
   } catch (error) {
     console.error('SQL Error:', error)
     throw error
@@ -168,6 +174,18 @@ function runMigrations() {
   if (!columnExists('daily_todos', 'ai_generated')) {
     console.log('Migrating: Adding ai_generated column to daily_todos table')
     database.run('ALTER TABLE daily_todos ADD COLUMN ai_generated INTEGER DEFAULT 0')
+  }
+
+  // chat_history 表 - 添加 session_id 列
+  if (!columnExists('chat_history', 'session_id')) {
+    console.log('Migrating: Adding session_id column to chat_history table')
+    database.run('ALTER TABLE chat_history ADD COLUMN session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE')
+  }
+
+  // pomodoro_settings 表 - 添加 max_overtime_duration 列
+  if (!columnExists('pomodoro_settings', 'max_overtime_duration')) {
+    console.log('Migrating: Adding max_overtime_duration column to pomodoro_settings table')
+    database.run('ALTER TABLE pomodoro_settings ADD COLUMN max_overtime_duration INTEGER DEFAULT 600')
   }
 
   saveDatabase()
@@ -382,15 +400,27 @@ function createTables() {
     )
   `)
 
+  // AI聊天会话表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
   // AI聊天历史表
   database.run(`
     CREATE TABLE IF NOT EXISTS chat_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       subject_id INTEGER,
       saved_as_question INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
       FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE SET NULL
     )
   `)
@@ -440,6 +470,46 @@ function createTables() {
       default_subject_id INTEGER,
       notification_sound INTEGER DEFAULT 1,
       max_pause_duration INTEGER DEFAULT 300
+    )
+  `)
+
+  // 通知设置表
+  database.run(`
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      review_reminder_enabled INTEGER DEFAULT 1,
+      review_reminder_time TEXT DEFAULT '09:00',
+      pomodoro_notification_enabled INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // 固定计划表（每日固定任务）
+  database.run(`
+    CREATE TABLE IF NOT EXISTS fixed_todos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // 固定计划实例表（跟踪每天生成的任务）
+  database.run(`
+    CREATE TABLE IF NOT EXISTS fixed_todo_instances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fixed_todo_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      todo_id INTEGER,
+      completed INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (fixed_todo_id) REFERENCES fixed_todos(id) ON DELETE CASCADE,
+      FOREIGN KEY (todo_id) REFERENCES daily_todos(id) ON DELETE SET NULL,
+      UNIQUE(fixed_todo_id, date)
     )
   `)
 
@@ -645,6 +715,13 @@ function createTables() {
   const pomoCount = pomodoroSettingsCount.length > 0 ? (pomodoroSettingsCount[0].values[0] as any[])[0] : 0
   if (pomoCount === 0) {
     database.run('INSERT INTO pomodoro_settings (id) VALUES (1)')
+  }
+
+  // 插入默认通知设置（如果表为空）
+  const notificationSettingsCount = database.exec('SELECT COUNT(*) as count FROM notification_settings')
+  const notifCount = notificationSettingsCount.length > 0 ? (notificationSettingsCount[0].values[0] as any[])[0] : 0
+  if (notifCount === 0) {
+    database.run('INSERT INTO notification_settings (id) VALUES (1)')
   }
 
   // 运行数据库迁移（添加缺失的列）

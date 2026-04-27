@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { initDatabase, closeDatabase, dbHelpers } from './database/init'
-import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService, pomodoroService } from './database/services'
+import { questionService, reviewService, subjectService, chapterService, tagService, statisticsService, audioService, todoService, summaryService, learningTimeService, taskService, taskSubitemService, taskProgressService, milestoneService, aiSettingsService, chatHistoryService, weakPointService, pomodoroService, notificationService, chatSessionService, fixedTodoService } from './database/services'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import https from 'https'
@@ -15,6 +15,61 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
 let mainWindow: BrowserWindow | null = null
+let reviewReminderInterval: NodeJS.Timeout | null = null
+let lastReminderDate: string = ''
+
+// 检查并发送复习提醒
+function checkAndSendReviewReminder() {
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  const currentTime = now.toTimeString().substring(0, 5) // HH:MM
+
+  // 避免同一天重复提醒
+  if (lastReminderDate === today) return
+
+  // 获取通知设置
+  const settings = notificationService.getSettings()
+  if (!settings || settings.review_reminder_enabled !== 1) return
+
+  // 检查是否到达提醒时间
+  if (currentTime === settings.review_reminder_time) {
+    // 获取需要复习的题目数量
+    const questions = questionService.getForReview()
+    const reviewCount = questions?.length || 0
+
+    if (reviewCount > 0) {
+      // 发送通知
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: '复习提醒',
+          body: `你有 ${reviewCount} 道题目需要复习，快来巩固一下吧！`,
+          icon: path.join(__dirname, '../public/icon.png'),
+        })
+        notification.show()
+
+        // 点击通知时打开主窗口
+        notification.on('click', () => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) {
+              mainWindow.restore()
+            }
+            mainWindow.show()
+            mainWindow.focus()
+            mainWindow.webContents.send('navigate', '/review')
+          }
+        })
+      }
+
+      lastReminderDate = today
+    }
+  }
+}
+
+// 启动复习提醒定时器
+function startReviewReminder() {
+  // 每分钟检查一次
+  reviewReminderInterval = setInterval(checkAndSendReviewReminder, 60 * 1000)
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -66,6 +121,9 @@ app.whenReady().then(async () => {
   menuBarManager.setSubjects(subjects)
 
   createWindow()
+
+  // 启动复习提醒定时器
+  startReviewReminder()
 
   // 自动更新逻辑
   if (!isDev) {
@@ -178,6 +236,10 @@ app.on('window-all-closed', () => {
 // 清理资源
 app.on('before-quit', () => {
   menuBarManager.destroy()
+  if (reviewReminderInterval) {
+    clearInterval(reviewReminderInterval)
+    reviewReminderInterval = null
+  }
 })
 
 // IPC 处理：显示系统通知
@@ -316,11 +378,30 @@ ipcMain.handle('db:aiSettings:save', async (_event, data: any) => aiSettingsServ
 ipcMain.handle('db:aiSettings:delete', async () => aiSettingsService.delete())
 
 // ==================== 聊天历史相关 ====================
-ipcMain.handle('db:chatHistory:getAll', async (_event, limit?: number) => chatHistoryService.getAll(limit))
+ipcMain.handle('db:chatHistory:getAll', async (_event, limit?: number, sessionId?: number) => chatHistoryService.getAll(limit, sessionId))
 ipcMain.handle('db:chatHistory:add', async (_event, data: any) => chatHistoryService.add(data))
 ipcMain.handle('db:chatHistory:markAsSaved', async (_event, id: number) => chatHistoryService.markAsSaved(id))
-ipcMain.handle('db:chatHistory:clear', async () => chatHistoryService.clear())
+ipcMain.handle('db:chatHistory:clear', async (_event, sessionId?: number) => chatHistoryService.clear(sessionId))
 ipcMain.handle('db:chatHistory:delete', async (_event, id: number) => chatHistoryService.delete(id))
+
+// ==================== 聊天会话相关 ====================
+ipcMain.handle('db:chatSessions:getAll', async () => chatSessionService.getAll())
+ipcMain.handle('db:chatSessions:getById', async (_event, id: number) => chatSessionService.getById(id))
+ipcMain.handle('db:chatSessions:create', async (_event, title?: string) => chatSessionService.create(title))
+ipcMain.handle('db:chatSessions:updateTitle', async (_event, id: number, title: string) => chatSessionService.updateTitle(id, title))
+ipcMain.handle('db:chatSessions:touch', async (_event, id: number) => chatSessionService.touch(id))
+ipcMain.handle('db:chatSessions:delete', async (_event, id: number) => chatSessionService.delete(id))
+ipcMain.handle('db:chatSessions:getHistory', async (_event, id: number) => chatSessionService.getHistory(id))
+
+// ==================== 固定计划相关 ====================
+ipcMain.handle('db:fixedTodos:getAll', async () => fixedTodoService.getAll())
+ipcMain.handle('db:fixedTodos:create', async (_event, data: any) => fixedTodoService.create(data))
+ipcMain.handle('db:fixedTodos:update', async (_event, id: number, data: any) => fixedTodoService.update(id, data))
+ipcMain.handle('db:fixedTodos:delete', async (_event, id: number) => fixedTodoService.delete(id))
+ipcMain.handle('db:fixedTodos:generateForDate', async (_event, date: string) => fixedTodoService.generateForDate(date))
+ipcMain.handle('db:fixedTodos:getInstancesByDate', async (_event, date: string) => fixedTodoService.getInstancesByDate(date))
+ipcMain.handle('db:fixedTodos:updateInstanceStatus', async (_event, id: number, completed: number) => fixedTodoService.updateInstanceStatus(id, completed))
+ipcMain.handle('db:fixedTodos:getStats', async (_event, id: number) => fixedTodoService.getStats(id))
 
 // ==================== 弱势点相关 ====================
 ipcMain.handle('db:weakPoints:getAll', async () => weakPointService.getAll())
@@ -359,6 +440,10 @@ ipcMain.handle('pomodoro:updateGoal', async (_event, goal: string) => {
 ipcMain.handle('pomodoro:updateSubject', async (_event, subjectId: number) => {
   await menuBarManager.updateSubject(subjectId)
 })
+
+// ==================== 通知设置相关 ====================
+ipcMain.handle('notification:getSettings', async () => notificationService.getSettings())
+ipcMain.handle('notification:saveSettings', async (_event, data: any) => notificationService.saveSettings(data))
 
 // ==================== AI API 调用 ====================
 ipcMain.handle('ai:call', async (_event, options: { url: string; apiKey: string; body: any }) => {
@@ -445,4 +530,132 @@ ipcMain.handle('ai:call', async (_event, options: { url: string; apiKey: string;
       reject(new Error(`请求配置错误: ${error.message}`))
     }
   })
+})
+
+// ==================== AI API 流式调用 ====================
+ipcMain.handle('ai:stream', async (event, options: { url: string; apiKey: string; body: any }) => {
+  const { url, apiKey, body } = options
+
+  console.log('AI Stream Call:', { url, model: body?.model })
+
+  try {
+    const parsedUrl = new URL(url)
+    const isHttps = parsedUrl.protocol === 'https:'
+    const client = isHttps ? https : http
+
+    // 检测是否是 Anthropic 格式
+    const isAnthropic = url.includes('/anthropic') || url.includes('/messages')
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
+    }
+
+    if (isAnthropic) {
+      headers['x-api-key'] = apiKey
+      headers['anthropic-version'] = '2023-06-01'
+    } else {
+      headers['Authorization'] = `Bearer ${apiKey}`
+    }
+
+    const requestOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: 'POST',
+      headers,
+    }
+
+    return new Promise((resolve, reject) => {
+      const req = client.request(requestOptions, (res) => {
+        let buffer = ''
+
+        res.on('data', (chunk) => {
+          buffer += chunk.toString()
+
+          // 处理 SSE 格式的数据 - 立即处理完整的行
+          let newlineIndex: number
+          while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.slice(0, newlineIndex)
+            buffer = buffer.slice(newlineIndex + 1)
+
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim()
+
+              if (data === '[DONE]') {
+                event.sender.send('ai:stream:end')
+                continue
+              }
+
+              if (!data) continue
+
+              try {
+                const parsed = JSON.parse(data)
+
+                // OpenAI 格式
+                if (parsed.choices?.[0]?.delta?.content) {
+                  event.sender.send('ai:stream:chunk', {
+                    type: 'content',
+                    content: parsed.choices[0].delta.content,
+                  })
+                }
+                // OpenAI 推理格式 (o1/o3 models)
+                if (parsed.choices?.[0]?.delta?.reasoning_content) {
+                  event.sender.send('ai:stream:chunk', {
+                    type: 'reasoning',
+                    content: parsed.choices[0].delta.reasoning_content,
+                  })
+                }
+                // Anthropic 格式
+                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                  event.sender.send('ai:stream:chunk', {
+                    type: 'content',
+                    content: parsed.delta.text,
+                  })
+                }
+                // Anthropic thinking 格式
+                if (parsed.type === 'content_block_delta' && parsed.delta?.thinking) {
+                  event.sender.send('ai:stream:chunk', {
+                    type: 'reasoning',
+                    content: parsed.delta.thinking,
+                  })
+                }
+              } catch (e) {
+                // 忽略解析错误，但记录以便调试
+                console.debug('SSE parse skip:', data.substring(0, 50))
+              }
+            }
+          }
+        })
+
+        res.on('end', () => {
+          event.sender.send('ai:stream:end')
+          resolve({ success: true })
+        })
+
+        res.on('error', (error) => {
+          event.sender.send('ai:stream:error', error.message)
+          reject(error)
+        })
+      })
+
+      req.on('error', (error) => {
+        console.error('Network error:', error)
+        event.sender.send('ai:stream:error', error.message)
+        reject(new Error(`网络请求失败: ${error.message}`))
+      })
+
+      req.setTimeout(120000, () => {
+        req.destroy()
+        event.sender.send('ai:stream:error', '请求超时')
+        reject(new Error('请求超时'))
+      })
+
+      req.write(JSON.stringify({ ...body, stream: true }))
+      req.end()
+    })
+  } catch (error: any) {
+    console.error('Request config error:', error)
+    throw new Error(`请求配置错误: ${error.message}`)
+  }
 })

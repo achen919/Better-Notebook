@@ -153,11 +153,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // 聊天历史相关
     chatHistory: {
-      getAll: (limit?: number) => ipcRenderer.invoke('db:chatHistory:getAll', limit),
+      getAll: (limit?: number, sessionId?: number) => ipcRenderer.invoke('db:chatHistory:getAll', limit, sessionId),
       add: (data: any) => ipcRenderer.invoke('db:chatHistory:add', data),
       markAsSaved: (id: number) => ipcRenderer.invoke('db:chatHistory:markAsSaved', id),
-      clear: () => ipcRenderer.invoke('db:chatHistory:clear'),
+      clear: (sessionId?: number) => ipcRenderer.invoke('db:chatHistory:clear', sessionId),
       delete: (id: number) => ipcRenderer.invoke('db:chatHistory:delete', id),
+    },
+
+    // 聊天会话相关
+    chatSessions: {
+      getAll: () => ipcRenderer.invoke('db:chatSessions:getAll'),
+      getById: (id: number) => ipcRenderer.invoke('db:chatSessions:getById', id),
+      create: (title?: string) => ipcRenderer.invoke('db:chatSessions:create', title),
+      updateTitle: (id: number, title: string) => ipcRenderer.invoke('db:chatSessions:updateTitle', id, title),
+      touch: (id: number) => ipcRenderer.invoke('db:chatSessions:touch', id),
+      delete: (id: number) => ipcRenderer.invoke('db:chatSessions:delete', id),
+      getHistory: (id: number) => ipcRenderer.invoke('db:chatSessions:getHistory', id),
+    },
+
+    // 固定计划相关
+    fixedTodos: {
+      getAll: () => ipcRenderer.invoke('db:fixedTodos:getAll'),
+      create: (data: any) => ipcRenderer.invoke('db:fixedTodos:create', data),
+      update: (id: number, data: any) => ipcRenderer.invoke('db:fixedTodos:update', id, data),
+      delete: (id: number) => ipcRenderer.invoke('db:fixedTodos:delete', id),
+      generateForDate: (date: string) => ipcRenderer.invoke('db:fixedTodos:generateForDate', date),
+      getInstancesByDate: (date: string) => ipcRenderer.invoke('db:fixedTodos:getInstancesByDate', date),
+      updateInstanceStatus: (id: number, completed: number) => ipcRenderer.invoke('db:fixedTodos:updateInstanceStatus', id, completed),
+      getStats: (id: number) => ipcRenderer.invoke('db:fixedTodos:getStats', id),
     },
 
     // 弱势点相关
@@ -178,12 +201,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
       createSession: (data: any) => ipcRenderer.invoke('pomodoro:createSession', data),
       updateSession: (id: number, data: any) => ipcRenderer.invoke('pomodoro:updateSession', id, data),
     },
+
+    // 通知设置相关
+    notification: {
+      getSettings: () => ipcRenderer.invoke('notification:getSettings'),
+      saveSettings: (data: any) => ipcRenderer.invoke('notification:saveSettings', data),
+    },
   },
 
   // AI API 调用
   ai: {
     call: (options: { url: string; apiKey: string; body: any }) =>
       ipcRenderer.invoke('ai:call', options),
+    stream: (options: { url: string; apiKey: string; body: any }) =>
+      ipcRenderer.invoke('ai:stream', options),
+    onStreamChunk: (callback: (data: { type: string; content: string }) => void) => {
+      ipcRenderer.on('ai:stream:chunk', (_event, data) => callback(data))
+    },
+    onStreamEnd: (callback: () => void) => {
+      ipcRenderer.on('ai:stream:end', () => callback())
+    },
+    onStreamError: (callback: (error: string) => void) => {
+      ipcRenderer.on('ai:stream:error', (_event, error) => callback(error))
+    },
+    removeAllStreamListeners: () => {
+      ipcRenderer.removeAllListeners('ai:stream:chunk')
+      ipcRenderer.removeAllListeners('ai:stream:end')
+      ipcRenderer.removeAllListeners('ai:stream:error')
+    },
   },
 
   // 番茄钟控制相关
@@ -350,11 +395,30 @@ export interface ElectronAPI {
       delete: () => Promise<void>
     }
     chatHistory: {
-      getAll: (limit?: number) => Promise<any[]>
+      getAll: (limit?: number, sessionId?: number) => Promise<any[]>
       add: (data: any) => Promise<number>
       markAsSaved: (id: number) => Promise<void>
-      clear: () => Promise<void>
+      clear: (sessionId?: number) => Promise<void>
       delete: (id: number) => Promise<void>
+    }
+    chatSessions: {
+      getAll: () => Promise<any[]>
+      getById: (id: number) => Promise<any>
+      create: (title?: string) => Promise<number>
+      updateTitle: (id: number, title: string) => Promise<void>
+      touch: (id: number) => Promise<void>
+      delete: (id: number) => Promise<void>
+      getHistory: (id: number) => Promise<any[]>
+    }
+    fixedTodos: {
+      getAll: () => Promise<any[]>
+      create: (data: any) => Promise<number>
+      update: (id: number, data: any) => Promise<void>
+      delete: (id: number) => Promise<void>
+      generateForDate: (date: string) => Promise<void>
+      getInstancesByDate: (date: string) => Promise<any[]>
+      updateInstanceStatus: (id: number, completed: number) => Promise<void>
+      getStats: (id: number) => Promise<any>
     }
     weakPoints: {
       getAll: () => Promise<any[]>
@@ -371,6 +435,10 @@ export interface ElectronAPI {
       createSession: (data: any) => Promise<number>
       updateSession: (id: number, data: any) => Promise<void>
     }
+    notification: {
+      getSettings: () => Promise<any>
+      saveSettings: (data: any) => Promise<void>
+    }
   }
   updater: {
     checkForUpdates: () => Promise<any>
@@ -386,6 +454,11 @@ export interface ElectronAPI {
   }
   ai: {
     call: (options: { url: string; apiKey: string; body: any }) => Promise<any>
+    stream: (options: { url: string; apiKey: string; body: any }) => Promise<{ success: boolean }>
+    onStreamChunk: (callback: (data: { type: string; content: string }) => void) => void
+    onStreamEnd: (callback: () => void) => void
+    onStreamError: (callback: (error: string) => void) => void
+    removeAllStreamListeners: () => void
   }
   pomodoroControl: {
     start: (durationMinutes: number, subjectId?: number, goal?: string) => Promise<void>
