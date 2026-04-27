@@ -34,7 +34,7 @@ import {
   RedoOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import type { Question, Subject, Chapter, Tag as TagType } from '../../types'
+import type { Question, Subject, Chapter, Tag as TagType, ChatSession, ParsedMilestoneInput } from '../../types'
 import ImportResultArea from '../../components/Chat/ImportResultArea'
 import PlanResultArea from '../../components/Chat/PlanResultArea'
 import {
@@ -112,7 +112,7 @@ const ChatPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 会话相关状态
-  const [sessions, setSessions] = useState<any[]>([])
+  const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
   const [sessionDrawerVisible, setSessionDrawerVisible] = useState(false)
 
@@ -404,7 +404,7 @@ const ChatPage: React.FC = () => {
 
       // 设置里程碑
       if (parsed.milestones && Array.isArray(parsed.milestones)) {
-        const milestonesWithIds = parsed.milestones.map((m: any) => ({
+        const milestonesWithIds = parsed.milestones.map((m: ParsedMilestoneInput) => ({
           id: generateMilestoneId(),
           title: m.title || '未命名里程碑',
           description: m.description || '',

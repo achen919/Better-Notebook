@@ -189,3 +189,18 @@ export interface PomodoroTodayStats {
   count: number
   total_duration: number
 }
+
+export interface ChatSession {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+  message_count?: number
+}
+
+export interface ParsedMilestoneInput {
+  title?: string
+  description?: string
+  days?: number
+  dailyTopics?: string[]
+}
