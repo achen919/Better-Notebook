@@ -214,9 +214,22 @@ ipcMain.handle('download-update', async () => {
 ipcMain.handle('install-update', () => {
   if (isDev) return false
   log.info('User requested to install update, calling quitAndInstall...')
-  // isSilent: false - 显示安装过程
-  // isForceRunAfter: true - 强制安装后重启应用
-  autoUpdater.quitAndInstall(false, true)
+
+  // 在 macOS 上，需要延迟执行 quitAndInstall 以确保：
+  // 1. IPC 响应能够正确返回到渲染进程
+  // 2. 给应用足够的时间准备退出
+  setImmediate(() => {
+    // 关闭所有窗口，确保应用能正确退出
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.removeAllListeners('close')
+      win.close()
+    })
+
+    // isSilent: false - 显示安装过程
+    // isForceRunAfter: true - 强制安装后重启应用
+    autoUpdater.quitAndInstall(false, true)
+  })
+
   return true
 })
 
